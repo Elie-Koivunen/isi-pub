@@ -1,0 +1,20 @@
+Write-Host "PowerShell Script to Query DNS Name/IP distribution"
+Write-Host ""
+#Clear any DNS cache
+Write-Host "Clear DNS cache"
+invoke-expression "ipconfig.exe /flushdns"
+ 
+#Set the SmartConnect zone name
+$SCZONE = "smartconnectzone.cluster.acme.com"
+ 
+Write-Host "Query DNS for IP address of $SCZONE"
+#Loop 12 times & perform NSLOOKUP of the SCZONE
+ForEach ($number in 1..12) {
+ try {
+  [System.Net.Dns]::GetHostEntry($SCZONE)|Select-Object Hostname, AddressList
+ }
+ catch {
+  Write-Host "No DNS Name $SCZONE" -foregroundcolor "red"
+ }
+ Start-Sleep -s 2
+}
