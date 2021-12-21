@@ -1,0 +1,7 @@
+isi certificate authority list|egrep -v valid
+isi certificate authority delete 178ce2c --force
+isi certificate authority delete 95c074e --force
+isi certificate authority delete be0ccd5 --force
+isi certificate authority delete ca42dd4 --force
+isi certificate authority delete d57084c --force
+isi certificate authority list|egrep -v valid
