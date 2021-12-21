@@ -1,0 +1,9 @@
+Add-DnsServerZoneDelegation -Name "ad.acme.local" -ChildZoneName "mycls01-static" -NameServer "mycls01-ssip.ad.acme.local" -IPAddress 192.168.255.10
+Add-DnsServerZoneDelegation -Name "ad.acme.local" -ChildZoneName "mycls01-dynamic" -NameServer "mycls01-ssip.ad.acme.local" -IPAddress 192.168.255.10
+Add-DnsServerZoneDelegation -Name "ad.acme.local" -ChildZoneName "mycls01-api" -NameServer "mycls01-ssip.ad.acme.local" -IPAddress 192.168.255.10
+Add-DnsServerZoneDelegation -Name "ad.acme.local" -ChildZoneName "mycls01-rep" -NameServer "mycls01-ssip.ad.acme.local" -IPAddress 192.168.255.10
+Add-DnsServerZoneDelegation -Name "ad.acme.local" -ChildZoneName "mycls01-ndmp" -NameServer "mycls01-ssip.ad.acme.local" -IPAddress 192.168.255.10
+Add-DnsServerZoneDelegation -Name "ad.acme.local" -ChildZoneName "mycls01-nfs" -NameServer "mycls01-ssip.ad.acme.local" -IPAddress 192.168.255.10
+Add-DnsServerZoneDelegation -Name "ad.acme.local" -ChildZoneName "mycls01-smb" -NameServer "mycls01-ssip.ad.acme.local" -IPAddress 192.168.255.10
+Add-DnsServerZoneDelegation -Name "ad.acme.local" -ChildZoneName "mycls01-s3" -NameServer "mycls01-ssip.ad.acme.local" -IPAddress 192.168.255.10
+Add-DnsServerZoneDelegation -Name "ad.acme.local" -ChildZoneName "mycls01-hdfs" -NameServer "mycls01-ssip.ad.acme.local" -IPAddress 192.168.255.10
