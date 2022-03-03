@@ -3,3 +3,16 @@ isi event thresholds list
 isi event thresholds view 100010015
 isi event thresholds modify --id=100010015 --info=86 --warn=88 --emerg=91
 isi event thresholds view 100010015
+
+isi event thresholds list --verbose --format=table
+ID        ID Name               Description                                                               Defaults                                        Thresholds            
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+100010001 SYS_DISK_VARFULL      Percentage at which /var partition is near capacity                       info (75%), warn (85%), crit (90%)              info (75%), warn (85%), crit (90%)
+100010002 SYS_DISK_VARCRASHFULL Percentage at which /var/crash partition is near capacity                 warn (90%)                                      warn (90%)            
+100010003 SYS_DISK_ROOTFULL     Percentage at which /(root) partition is near capacity                    warn (90%), crit (95%)                          warn (90%), crit (95%)
+100010015 SYS_DISK_POOLFULL     Percentage at which a nodepool is near capacity                           info (70%), warn (80%), crit (90%), emerg (97%) info (86%), warn (88%), crit (90%), emerg (91%)
+100010018 SYS_DISK_SSDFULL      Percentage at which an SSD drive is near capacity                         info (75%), warn (85%), crit (90%)              info (75%), warn (85%), crit (90%)
+600010005 SNAP_RESERVE_FULL     Percentage at which snapshot reserve space is near capacity               warn (90%), crit (99%)                          warn (90%), crit (99%)
+800010006 FILESYS_FDUSAGE       Percentage at which the system is near capacity for open file descriptors info (85%), warn (90%), crit (95%)              info (85%), warn (90%), crit (95%)
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
