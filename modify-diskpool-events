@@ -4,6 +4,9 @@ isi event thresholds view 100010015
 isi event thresholds modify --id=100010015 --info=86 --warn=88 --emerg=91
 isi event thresholds view 100010015
 
+isi event thresholds modify --id=100010015 --info=80 --warn=85 --emerg=90 --crit=89
+
+
 isi event thresholds list --verbose --format=table
 ID        ID Name               Description                                                               Defaults                                        Thresholds            
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
