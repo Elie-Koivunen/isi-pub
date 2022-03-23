@@ -2,6 +2,7 @@
 
 # collection of variables for scripting:
 
+# update cluster names!!!
 myrepo=/ifs/data/certs
 mycls1=sslsiq9101
 mycls2=sslsiq9102
