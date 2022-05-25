@@ -1,0 +1,5 @@
+other File-system information for other uncategorized operations
+write File and stream writing
+read File and stream reading 
+namespace_read Attribute stat and ACL reads; lookup directory reading
+namespace_write Renames; attribute setting; permission time and ACL writes
