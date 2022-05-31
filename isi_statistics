@@ -1,0 +1,1 @@
+isi statistics query current --keys cluster.protostats.smb2,cluster.protostats.nfs --interval 10 --format csv 
