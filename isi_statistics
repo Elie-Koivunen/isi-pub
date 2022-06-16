@@ -1,1 +1,4 @@
 isi statistics query current --keys cluster.protostats.smb2,cluster.protostats.nfs --interval 10 --format csv 
+
+
+echo "Connection counts" ; isi statistics query current --nodes=all --stats=node.clientstats.connected.nfs,node.clientstats.active.nfs ; isi statistics query current list --nodes=all --stats=node.clientstats.connected.smb,node.clientstats.active.smb1,node.clientstats.active.smb2
