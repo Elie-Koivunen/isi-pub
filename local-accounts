@@ -1,0 +1,19 @@
+isi zone zones create az-foobar /ifs/cls-cls940/az-foobar --groupnet=gnet-foobar
+isi zone zones list --verbose
+
+isi auth groups list --provider=lsa-local-provider:az-foobar --zone=az-foobar
+isi auth groups create --provider=lsa-local-provider:az-foobar --zone=az-foobar --gid=66001 --name=foobar-allusers
+isi auth groups create --provider=lsa-local-provider:az-foobar --zone=az-foobar --gid=66002 --name=foobar-ro-users
+isi auth groups create --provider=lsa-local-provider:az-foobar --zone=az-foobar --gid=66003 --name=foobar-rw-users
+isi auth groups create --provider=lsa-local-provider:az-foobar --zone=az-foobar --gid=66004 --name=foobar-full-users
+isi auth groups view foobar-allusers --provider=lsa-local-provider:az-foobar --zone=az-foobar
+
+isi auth users list --provider=lsa-local-provider:az-foobar --zone=az-foobar
+isi auth users create --enabled=true --primary-group=foobar-allusers --provider=lsa-local-provider:az-foobar --zone=az-foobar --uid=99001 --email=myuser1@foobar.zone --name=myuser1 --password=DefaultPa55#
+isi auth groups members list foobar-allusers --provider=lsa-local-provider:az-foobar --zone=az-foobar --format=table --verbose
+isi auth users view myuser1 --provider=lsa-local-provider:az-foobar --zone=az-foobar
+isi auth users view myuser1 --provider=lsa-local-provider:az-foobar --zone=az-foobar --show-groups
+
+
+
+
