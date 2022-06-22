@@ -1,0 +1,5 @@
+isi zone zones list --verbose --format=table
+chmod 775 /ifs/cls-cls940/az-foobar/cos-groupdir/pod-finance
+isi_run -z 2 chown myuser1:foobar-allusers /ifs/cls-cls940/az-foobar/cos-groupdir/pod-finance
+isi_run -z 2 ls -hadle pod-finance
+isi_run -z 2 ls -handle pod-finance
