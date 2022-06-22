@@ -1,0 +1,4 @@
+isi smb shares create --name=smb-share --path=/ifs/cls-cls940/az-foobar/cos-groupdir/pod-finance --zone=az-foobar
+isi smb shares list --zone=az-foobar --format=table --verbose
+isi smb shares permission list smb-share --zone=az-foobar
+isi smb shares permission modify smb-share --wellknown=Everyone --zone=az-foobar --permission-type=allow  --permission=full
