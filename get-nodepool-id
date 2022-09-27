@@ -1,0 +1,5 @@
+isi storagepool nodepools list --no-footer --no-header |awk '{print "=========================================================\r\nNODEPOOL Name\t\t\t Nodepool ID\r\n=========================================================\r\n"$2 "\t\t\t" $4;}'
+=========================================================
+NODEPOOL Name                    Nodepool ID
+=========================================================
+unprovisioned_pool_1                    1
