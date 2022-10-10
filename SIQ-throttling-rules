@@ -1,0 +1,5 @@
+isi sync rules list
+isi sync rules create bandwidth 00:00-23:59 X,M,T,W,F,R,S 100000 --description="100mb throttle" 
+isi sync rules create cpu 00:00-23:59 X,M,T,W,F,R,S 50 --description="CPU cap 50"
+isi sync rules create worker 00:00-23:59 X,M,T,W,F,R,S 20 --description="workers cap 20"
+isi sync rules list
