@@ -1,0 +1,1 @@
+isi cluster identity modify --description="Production cluster SWID: ELMFOO2342 SITEID:  4440830" --motd-header="Production cluster SWID: ELMFOO2342 SITEID: 4440830" --motd="Production cluster SWID: ELMFOO2342 SITEID:  4440830"
