@@ -19,6 +19,27 @@ isi job policies create --name=CUSTOM_low_Office_Hours \
 --impact=low --begin 'friday 07:30' --end 'friday 19:00' \
 --impact=medium --begin 'friday 19:00' --end 'monday 00:01' 
 
+isi job policies create --name=CUSTOM_paused__Office_Hours_LOW \
+--impact=low --begin 'monday 00:01' --end 'monday 07:30' \
+--impact=paused --begin 'monday 07:30' --end 'monday 19:00' \
+--impact=low --begin 'monday 19:00' --end 'tuesday 00:01' \
+\
+--impact=low --begin 'tuesday 00:01' --end 'tuesday 07:30' \
+--impact=paused --begin 'tuesday 07:30' --end 'tuesday 19:00' \
+--impact=low --begin 'tuesday 19:00' --end 'wednesday 00:01' \
+\
+--impact=low --begin 'wednesday 00:01' --end 'wednesday 07:30' \
+--impact=paused --begin 'wednesday 07:30' --end 'wednesday 19:00' \
+--impact=low --begin 'wednesday 19:00' --end 'thursday 00:01' \
+\
+--impact=low --begin 'thursday 00:01' --end 'thursday 07:30' \
+--impact=paused --begin 'thursday 07:30' --end 'thursday 19:00' \
+--impact=low --begin 'thursday 19:00' --end 'friday 00:01' \
+\
+--impact=low --begin 'friday 00:01' --end 'friday 07:30' \
+--impact=paused --begin 'friday 07:30' --end 'friday 19:00' \
+--impact=low --begin 'friday 19:00' --end 'monday 00:01' 
+
 
 isi job types modify --id=Collect --policy=CUSTOM_low_Office_Hours --force
 isi job types modify --id=AutoBalance --policy=CUSTOM_low_Office_Hours --force
