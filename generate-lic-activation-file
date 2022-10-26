@@ -1,1 +1,5 @@
+isi license generate --include=HDFS,ONEFS,SMARTCONNECT_ADVANCED --file=/ifs/activation-$HOST.xml
+
+
+
 isi license generate --include=HDFS,ONEFS,`isi license list --no-footer --no-header|egrep -v -i "unlicensed|ID|sign"|awk '{print $1;}'|xargs | sed -e 's/ /,/g'` --file=/ifs/activation-$HOST.xml
