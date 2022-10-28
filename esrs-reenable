@@ -1,0 +1,16 @@
+ isi esrs view
+ isi services
+ isi_gconfig -t esrs esrs.enabled
+ isi_gconfig -t esrs|egrep -i api
+ isi services isi_esrs_d disable
+ isi_gconfig -t esrs esrs.enabled=false
+ isi_gconfig -t esrs esrs.enabled
+ isi_gconfig -t esrs esrs.esrs_api_key=""
+ isi_gconfig -t esrs|egrep -i api
+ 
+ isi esrs view
+ isi services
+ isi esrs modify --enabled=true --username=XXXX
+ isi esrs view
+ isi_gconfig -t esrs|egrep -i api
+ isi_gconfig -t esrs esrs.enabled
