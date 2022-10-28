@@ -1,0 +1,5 @@
+#restart smartconnect
+
+isi_for_array -s "ps -aux |egrep -i dnsiq"
+pkill isi_dnsiq_d isi_smartconnect_d
+isi network interfaces list
