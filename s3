@@ -1,0 +1,44 @@
+# revise current setup
+isi s3 settings global view
+
+# enable s3 service
+isi services s3 enable
+
+# verify that the service is enabled
+isi services
+isi s3 settings global view
+
+# revise zone setup
+isi s3 settings zone view
+
+# view s3 keys
+isi s3 mykeys view --show-key
+
+# create a zone specific group and user
+isi auth groups create --name=grps3 --gid=3000 --provider=lsa-local-provider:az-labscape --zone=az-labscape
+isi auth users create --enabled=true --name=s3svc --primary-group=grps3 --uid=6000 --provider=lsa-local-provider:az-labscape --zone=az-labscape --set-password
+isi auth users list --zone=az-labscape
+
+# revise user & group
+isi auth users view s3svc --zone=az-labscape
+isi auth groups view grps3 --provider=lsa-local-provider:az-labscape --zone=az-labscape
+
+# configure s3 in access zone
+isi s3 settings zone view --zone=az-labscape
+isi s3 settings zone modify --zone=az-labscape --use-md5-for-etag=true --validate-content-md5=true --root-path=/ifs/cls-cls940/az-labscape/cos-s3/pod-bucket001  --base-domain=lab.scape
+
+isi s3 settings zone view --zone=az-labscape
+
+# set root path ownership
+ll
+chmod 775 /ifs/cls-cls940/az-labscape/cos-s3/pod-bucket001
+ll
+chown 6000:3000 /ifs/cls-cls940/az-labscape/cos-s3/pod-bucket001
+ll
+
+# create a key
+isi s3 keys create s3svc --zone=az-labscape --show-key
+
+# create bucket
+isi s3 buckets create --name=s3bucket --description="OneFS S3 bucket" --owner=s3svc --zone=az-labscape --path=/ifs/cls-cls940/az-labscape/cos-s3/pod-bucket001 --object-acl-policy=replace
+
