@@ -1,0 +1,28 @@
+# create a new rbac role api-ro
+isi auth roles create --name=api-ro --description="API readonly privileges" --zone=system
+# revise role setup
+isi auth roles view api-ro
+
+# add appropriate read-only privileges
+isi auth roles modify api-ro --add-priv-ro=ISI_PRIV_JOB_ENGINE
+isi auth roles modify api-ro --add-priv-ro=ISI_PRIV_LOGIN_PAPI
+isi auth roles modify api-ro --add-priv-ro=ISI_PRIV_STATISTICS
+
+
+# create local user
+isi auth users create --enabled=yes --zone=system --provider=lsa-local-provider:system --name=api-ro-user --password=Dk1gg6fqw9Ja
+isi auth roles modify --add-user=api-ro-user --role=api-ro
+
+
+curl -k --header "Content-Type: application/json" -c pipari.txt -X POST -d @auth.json https://192.168.255.31:8080/session/1/session
+
+
+cat pipari.txt|egrep -i isicsrf|awk '{print "X-CSRF-Token:",$7;}'
+cat pipari.txt|egrep -i isisessid|awk '{print "isisessid="$7;}'
+
+X-CSRF-Token: 2bf94132-1c1a-4277-b000-d69283f99118
+cls940-1# cat pipari.txt|egrep -i isisessid|awk '{print "isisessid="$7;}'
+isisessid=736ac3ba-949f-46f7-815f-aacfe21beaaf
+
+/platform/3/statistics/summary/
+curl -vk "https://192.168.255.31:8080//platform/3/statistics/summary/platform/" -b 'isisessid=f9422278-7f28-4995-adca-e238c2656f6e' -H 'X-CSRF-Token: fe1b7490-ac10-41ce-ab28-a0412d76a573' --referer https://192.168.255.31:8080
