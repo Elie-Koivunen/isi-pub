@@ -1,0 +1,6 @@
+isi statistics query current list --keys=node.audit.cee.export.rate --nodes all
+
+isi statistics client list --nodes=all --protocols=nfs4,nfs3
+
+isi statistics query --nodes=all --stats=node.clientstats.connected.nfs,node.clientstats.active.nfs 
+
