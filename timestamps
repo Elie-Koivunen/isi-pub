@@ -1,0 +1,18 @@
+Type or copy and paste the following script into the terminal window, where <path to file> is the path of the file you wish to list the information for:
+file=<path to file>; epoch=$(isi get -DD $file | grep Create | cut -d ":" -f 2 | sed "s/^[\t]*//" | sort -n | sed '1!d'|cut -d "." -f 1); echo "Create: $(date -jr $(awk -v var="$epoch" 'BEGIN {print var}') +'%a %b %d %T %Y')"; stat -x $file | grep -A2 Ac
+
+For example:
+Cluster-1# file=/ifs/README.txt; epoch=$(isi get -DD $file | grep Create | cut -d ":" -f 2 | sed "s/^[\t]*//" | sort -n | sed '1!d'|cut -d "." -f 1); echo "Create: $(date -jr $(awk -v var="$epoch" 'BEGIN {print var}') +'%a %b %d %T %Y')"; stat -x $file | grep -A2 Ac
+
+Output similar to the following is displayed:
+Create: Wed Jun 15 21:36:56 2022
+Access: Wed Jun 15 21:38:16 2022
+Modify: Wed Jun 15 21:38:16 2022
+Change: Wed Jun 15 21:38:16 2022
+
+One can also extract this information for multiple files by replacing file1.txt file2.txt with the absolute path of requested files in the following script:
+for i in file1.txt file2.txt
+ do
+ echo  Filename:$i
+ file=$i; epoch=$(isi get -DD $file | grep Create | cut -d ":" -f 2 | sed "s/^[\t]*//" | sort -n | sed '1!d'|cut -d "." -f 1); echo "Create: $(date -jr $(awk -v var="$epoch" 'BEGIN {print var}') +'%a %b %d %T %Y')"; stat -x $file | grep -A2 Ac
+ done
