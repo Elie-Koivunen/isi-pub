@@ -1,0 +1,7 @@
+# isi auth mapping dump -f /ifs/data/mapping.dump  --zone=<zonename>
+# isi_clean_idmap --clean-idmap
+# isi auth mapping delete --all --only-generated --zone=<zone>
+# isi auth cache flush --all
+# isi auth users flush
+# isi auth groups flush
+# isi auth mapping flush --all
