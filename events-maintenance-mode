@@ -1,0 +1,8 @@
+isi event settings modify --maintenance-duration=3D --maintenance-start=2023-01-24T14:30:00
+isi event settings view
+
+Retention Days: 90
+Storage Limit: 1
+Maintenance Start: 2023-01-24T14:30:00
+Maintenance Duration: 3D
+Heartbeat Interval: weekly
