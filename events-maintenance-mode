@@ -6,3 +6,6 @@ Storage Limit: 1
 Maintenance Start: 2023-01-24T14:30:00
 Maintenance Duration: 3D
 Heartbeat Interval: weekly
+
+
+isi event settings modify --clear-maintenance-start
