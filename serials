@@ -1,0 +1,18 @@
+# cluster serial GUID
+grep -A1 serial /etc/ifs/array.xml | grep guid
+
+grep -A1 serial /etc/ifs/array.xml | grep guid|sed -e 's/<[^>]*>//g'
+
+# chassis serial number
+isi_for_array /usr/bin/isi_hwtools/isi_fcb_vpd_tool dump
+
+# node serials
+isi_for_array -s isi_hw_status | grep SerNo 
+
+# node LNN and serial number
+isi_nodes %{id} %{lnn} %{name} %{serialno}
+
+# get product string
+cat isi_hw_status/<node_name>-isi_hw_status |grep -i prod
+
+isi_for_array -s "isi_hw_status |grep -i prod"
