@@ -1,0 +1,7 @@
+isi_firmware_tool --show
+isi upgrade firmware assess
+isi_upgrade_logs --get-fw-report
+isi_upgrade_logs --get-fw-report
+isi upgrade catalog list
+isi upgrade cluster firmware devices
+isi devices firmware list
