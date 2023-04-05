@@ -5,3 +5,19 @@ isi_upgrade_logs --get-fw-report
 isi upgrade catalog list
 isi upgrade cluster firmware devices
 isi devices firmware list
+
+
+isi upgrade firmware assess --fw-pkg=/ifs/data/admin/src/9.4.0.13/nf/IsiFw_Package_v11.6.1.tar
+isi_upgrade_logs --get-fw-report
+isi upgrade cluster firmware start --fw-pkg=/ifs/data/admin/src/9.4.0.13/nf/IsiFw_Package_v11.6.1.tar --nodes-to-upgrade=13-14 --simultaneous
+isi_upgrade_logs --get-fw-report
+isi upgrade cluster nodes firmware progress list
+
+
+ isi_dsp_install /ifs/data/admin/src/9.4.0.13/dsp/1.44/Drive_Support_v1.44.tar
+ isi devices drive firmware update start all --node-lnn=all
+ isi devices drive firmware update view --node-lnn=3
+ isi devices drive firmware update list
+ isi devices drive list --node-lnn=all
+ 
+ 
