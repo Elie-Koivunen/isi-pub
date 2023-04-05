@@ -1,0 +1,11 @@
+to check run:
+isi healthcheck run --checklist=battery_test_status
+isi healthcheck evaluations list|egrep -i battery
+isi healthcheck view battery_test_status20230405T1231
+ 
+or:
+isi healthcheck run --checklist=battery_test_status
+for i in ` isi healthcheck evaluations list|egrep -i battery|awk '{print $1;}'`;do echo Viewing report ID: $i;isi healthcheck view $i --verbose;done
+for i in ` isi healthcheck evaluations list|egrep -i battery|awk '{print $1;}'`;do echo Viewing report ID: $i;isi healthcheck view $i --verbose;done > battery-check-results.txt;cat battery-check-results.txt
+
+
