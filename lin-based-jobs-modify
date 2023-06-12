@@ -1,0 +1,21 @@
+###################
+
+# check current status of lin based jobs
+
+isi_gconfig -t job-config jobs.common.lin_based_jobs
+
+# force LIN based jobs
+isi_gconfig -t job-config jobs.common.lin_based_jobs=true
+isi_gconfig -t job-config jobs.common.lin_based_jobs
+
+#
+# modify default job run from AUTO to TRUE
+#
+# check current state
+isi_gconfig -t job-config jobs.types.flexprotect.restripe_goal       
+isi_gconfig -t job-config jobs.types.flexprotectlin.restripe_goal       
+
+# set to rebalance
+isi_gconfig -t job-config jobs.types.flexprotect.restripe_goal=rebalance
+isi_gconfig -t job-config jobs.types.flexprotectlin.restripe_goal=rebalance
+
