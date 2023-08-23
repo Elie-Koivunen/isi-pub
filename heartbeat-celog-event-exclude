@@ -1,0 +1,5 @@
+isi event alerts list
+isi event alerts create --name=LABSCAPE-smtp-new NEW --channel=VM-SMTP --category=100000000,1100000000,200000000,300000000,500000000,600000000,700000000,800000000,900000000
+isi event alerts view LABSCAPE-smtp-new
+for i in $(isi event types list --category=400000000 | awk '{print $1}'|grep 400| grep -v 400050004|tr '\n' ', '); do isi event alerts modify LABSCAPE-smtp-new --add-eventgroup="$i"; done
+isi event alerts view LABSCAPE-smtp-new
