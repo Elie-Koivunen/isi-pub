@@ -1,0 +1,9 @@
+
+# load functionality module
+Import-Module ActiveDirectory
+
+# read current SPN entries
+Get-ADComputer -Identity cls921 -Properties ServicePrincipalName | Select-Object -ExpandProperty ServicePrincipalName
+
+Set-ADComputer -Identity cls921 -Add @{ ServicePrincipalName = "HOST/cls921-nfs.lab.scape" } 
+Set-ADComputer -Identity cls921 -Remove @{ ServicePrincipalName = "HOST/cls921-nfs.lab.scape" } 
