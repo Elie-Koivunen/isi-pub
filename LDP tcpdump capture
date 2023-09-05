@@ -1,0 +1,2 @@
+tcpdump -nvi bce0 -s 1500 ether dst 01:00:0c:cc:cc:cc
+tcpdump -nn -v -xx -i eth? -s 1500 -c 1 'ether dst 01:00:0c:cc:cc:cc and (ether[24:2] = 0x2000 or ether[20:2] = 0x2000)'
