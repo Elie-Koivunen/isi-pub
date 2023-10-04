@@ -4,3 +4,5 @@ isi statistics client list --nodes=all --protocols=nfs4,nfs3
 
 isi statistics query --nodes=all --stats=node.clientstats.connected.nfs,node.clientstats.active.nfs 
 isi statistics query current --keys=node.clientstats.active.nfs3 --nodes=all --degraded
+
+isi statistics client --sort TimeAvg --format csv
