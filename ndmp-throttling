@@ -1,0 +1,12 @@
+isi ndmp settings global modify --enable-redirector true
+isi ndmp settings global modify --enable-throttler true
+isi ndmp settings global modify --throttler-cpu-threshold 35
+
+============
+isi ndmp users create ndmpuser --password ndmppass
+isi ndmp settings global modify --service=true --dma=emc
+isi ndmp settings preferred-ips create
+isi services ndmpd enable
+isi ndmp settings variables create /ifs/data BACKUP_MODE SNAPSHOT
+isi ndmp settings variables create /ifs/data BACKUP_OPTIONS 
+isi ndmp settings variables create /ifs/data RESTORE_OPTIONS
