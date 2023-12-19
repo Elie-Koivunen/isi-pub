@@ -1,0 +1,14 @@
+isi upgrade patches list
+isi upgrade patches install --simultaneous isi_psi_package_v1.0.pkg
+/usr/bin/isi_hwtools/isi_upgrade_hardware -–cluster –-path=/root/cluster_hardware_upgrade.json
+isi_for_array -node1,2,3,4 "isi_flush"
+# commence node hw upgrade
+#SSH to node
+/usr/bin/isi_hwtools/isi_upgrade_hardware -–node -–start
+isi_flush
+shutdown -p now # isi cluster shutdown --node-lnn=XX
+/usr/bin/isi_hwtools/isi_upgrade_hardware -–node -–validate
+/usr/bin/isi_hwtools/isi_upgrade_hardware -–cluster -–progress	
+# loop through nodes and at the end activate
+/usr/bin/isi_hwtools/isi_upgrade_hardware -–cluster -–activate
+
