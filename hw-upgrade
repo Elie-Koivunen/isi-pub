@@ -1,6 +1,8 @@
 # in a separate window session follow on progress:
 while true do; sleep 33; isi_group_info;isi upgrade view;/usr/bin/isi_hwtools/isi_upgrade_hardware -–cluster -–progress;done
 
+# gather logs before commencing
+isi diagnostics gather start
 
 # set cluster to maintenance mode
 isi upgrade patches list
@@ -19,3 +21,7 @@ isi event bulk --ignore=true --resolved=true
 # loop through nodes and at the end activate
 /usr/bin/isi_hwtools/isi_upgrade_hardware -–cluster -–activate
 
+# exit maintenance mode
+
+# gather logs after completion 
+isi diagnostics gather start
