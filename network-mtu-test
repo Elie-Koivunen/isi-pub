@@ -1,0 +1,21 @@
+#!/bin/bash
+
+rm /tmp/ip_test.out
+
+touch /tmp/ip_test.out
+
+echo "Client                    Loss%" >> /tmp/ip_test.out
+
+echo "________________________________________" >> /tmp/ip_test.out
+
+for i in `isi statistics client list --no-header --no-footer  | awk '{print $10}'| sort | uniq -u `
+
+do
+
+        IP=$i
+
+        LOSS=`ping -D -t 2 -c 2 -s 8500 -q $IP | grep loss | awk '{print $7}'`
+
+        echo "$IP               $LOSS" >> /tmp/ip_test.out
+
+done
