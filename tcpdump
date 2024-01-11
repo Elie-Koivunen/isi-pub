@@ -1,13 +1,17 @@
 #create dir
 mkdir -p /ifs/data/Isilon_Support/pcaps
 
+
 # kill process
 isi_for_array -s "pkill -9 tcpdump"
-isi_for_array -s "pgrep tcpdump > /dev/null && echo 'tcpdump process is running ..' || echo 'tcpdump process not found!'; pgrep tcpdump"
+isi_for_array -s "pgrep tcpdump > /dev/null && echo 'tcpdump process is running ..' && pkill -9 tcpdump || echo 'tcpdump process not found!' && pgrep tcpdump"
+
 
 # search process
 isi_for_array -s "pgrep tcpdump"
+isi_for_array -s "pgrep tcpdump > /dev/null && echo 'tcpdump process is running ..' || echo 'tcpdump process not found!'; pgrep tcpdump"
 
 #kick of tcpdump
 
-isi_for_array -X "for myifaces in `ifconfig -l| tr ' ' '\n'| egrep -i -v 'lo0|bge|em0|em2'`;do echo Captupring on interface: $myifaces;tcpdump -nni $myifaces -s 3 -w /ifs/data/Isilon_Support/pcaps/$(date +%F)-$(uname -n).${myifaces}_$(date +%F_%H%M%S).pcap -C 500 -W 5  &>> /ifs/data/Isilon_Support/pcaps/$(date +%F)-$(uname -n).$(date +%F_%H%M%S).$myifaces.log & ;done"
+isi_for_array -X "for myifaces in `ifconfig -l| tr ' ' '\n'| egrep -i -v 'lo0|bge|em0|em2'`;do echo Captupring on interface: \$myifaces;tcpdump -nni \$myifaces -s 3 -w /ifs/data/Isilon_Support/pcaps/\$(date +%F)-$(uname -n).\${myifaces}_\$(date +%F_%H%M%S).pcap -C 500 -W 5  &>> /ifs/data/Isilon_Support/pcaps/\$(date +%F)-\$(uname -n).\$(date +%F_%H%M%S).\$myifaces.log & ;done"
+
