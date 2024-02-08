@@ -1,0 +1,72 @@
+https://community.emc.com/docs/DOC-59117
+https://blogs.technet.microsoft.com/clausjor/2012/06/07/smb-transparent-failover-making-file-shares-continuously-available/
+
+Beginning with OneFS 8.x, Isilon supports Server Message Block (SMB) Transparent Failover by leveraging SMB 3.0 continuous availability. This article describes the steps to validate that this functionality is in use on the Windows client. Note that this example was generated using a Windows 10 client against OneFS 8.0.0.3.
+
+What is SMB Transparent Failover?
+SMB Transparent Failover enables administrators to configure Windows file shares—in Windows failover clustering configurations—to be continuously available. Using continuously available file shares enables administrators to perform hardware or software maintenance on any cluster node without interrupting the server applications that are storing their data files on these file shares. Also, in case of a hardware or software failure, the server application nodes will transparently reconnect to another cluster node without interruption of the server applications.
+
+How does SMB Transparent Failover work?
+When an SMB client initially connects to a file share, the client determines whether the file share has the continuous availability property set. If it does, this means that the file share is a clustered file share and supports SMB transparent failover. When the SMB client subsequently opens a file on the file share on behalf of the application, it requests a persistent file handle. When the SMB server receives a request to open a file with a persistent handle, the SMB server interacts with the Resume Key filter to allow sufficient information about the file handle—along with a unique key (Resume Key) supplied by the SMB client—to persist to clustered storage.
+
+Verify continuous availability
+To verify that a file share has the continuous availability property set, perform the following steps on the Windows client:
+
+Map a network drive.
+Start PowerShell.
+In an elevated PowerShell shell on the Windows client where the SMB share is mapped to a drive, run the Get-SmbConnection command and look for the Isilon cluster name you are connected to.
+Run the Get-SmbConnection <Isilon Clustername> | Select * command to display the connection configuration and verify that a file share has the continuous availability property set.
+
+Look for the “ContinuouslyAvailable” property in the output. If it is set to True, it is available and in use.
+Example of a share not using continuous availability
+
+Get-SmbConnection
+ServerName ShareName UserName   Credential Dialect NumOpens
+
+---------- --------- --------   ---------- ------- --------
+
+Isi_Lab_CA ifs       CORP\foo CORP\zippy  3.0 2
+
+Get-SmbConnection Isi_Lab_CA | select *
+SmbInstance : Default
+ContinuouslyAvailable : False
+Credential : CORP\zippy
+Dialect : 3.0
+Encrypted : False
+NumOpens : 2
+Redirected : False
+ServerName : Isi_Lab_CA.wysiwyg.com
+ShareName : ifs
+Signed : False
+UserName : CORP\foo
+PSComputerName :
+CimClass : ROOT/Microsoft/Windows/SMB:MSFT_SmbConnection
+CimInstanceProperties : {ContinuouslyAvailable, Credential, Dialect, Encrypted...}
+CimSystemProperties : Microsoft.Management.Infrastructure.CimSystemProperties
+
+Example of a share using continuous availability
+
+Get-SmbConnection
+
+ServerName ShareName UserName   Credential Dialect NumOpens
+---------- --------- --------   ---------- ------- --------
+Isi_Lab_CA ca_enabled       CORP\foo CORP\zippy  3.0 2
+
+Get-SmbConnection Isi_Lab_CA | select *
+
+SmbInstance : Default
+ContinuouslyAvailable : True
+Credential : CORP\zippy
+Dialect : 3.0
+Encrypted : False
+NumOpens : 2
+Redirected : False
+ServerName : Isi_Lab_CA.wysiwyg.com
+ShareName : ca_enabled
+Signed : False
+UserName : CORP\foo
+PSComputerName :
+CimClass : ROOT/Microsoft/Windows/SMB:MSFT_SmbConnection
+CimInstanceProperties : {ContinuouslyAvailable, Credential, Dialect, Encrypted...}
+CimSystemProperties : Microsoft.Management.Infrastructure.CimSystemProperties
+
