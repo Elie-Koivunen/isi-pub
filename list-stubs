@@ -1,0 +1,2 @@
+isi_test_cpool_cbm2 --list-stubs –verbose
+ls -lRo /ifs |egrep -i smartlink > stubbed-files.log
