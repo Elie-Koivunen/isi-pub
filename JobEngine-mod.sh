@@ -40,6 +40,7 @@ isi job policies create --name=CUSTOM_paused__Office_Hours_LOW \
 --impact=paused --begin 'friday 07:30' --end 'friday 19:00' \
 --impact=low --begin 'friday 19:00' --end 'monday 00:01' 
 
+isi job policies create --name=PAUSED --impact=paused --begin 'monday 00:01' --end 'sunday 23:59' 
 
 isi job types modify --id=Collect --policy=CUSTOM_low_Office_Hours --force
 isi job types modify --id=AutoBalance --policy=CUSTOM_low_Office_Hours --force
