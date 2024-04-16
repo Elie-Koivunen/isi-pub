@@ -1,0 +1,153 @@
+dd if=10mb.file of=10mb.file.sample1 bs=8192 count=10 && dd if=10mb.file of=10mb.file.sample2 bs=8192 skip=1000 count=24 && dd if=10mb.file of=10mb.file.sample3 bs=8192 skip=$(($(stat -f "%z" 10mb.file) / 2 / 8192)) count=3 && dd if=10mb.file of=10mb.file.sample4 bs=8192 skip=$(($(stat -f "%z" 10mb.file) / 8192 - 1024)) count=24 && dd if=10mb.file of=10mb.file.sample5 bs=8192 skip=$(($(stat -f "%z" 10mb.file) / 8192 - 10)) count=10 && cat 10mb.file.sample1 10mb.file.sample2 10mb.file.sample3 10mb.file.sample4 10mb.file.sample5 > 10mb.file.sample-concatenated && md5sum 10mb.file.sample-concatenated
+
+
+dd if=10mb.file of=10mb.file.sample1 bs=8192 count=10 && 
+dd if=10mb.file of=10mb.file.sample2 bs=8192 skip=1000 count=24 && 
+dd if=10mb.file of=10mb.file.sample3 bs=8192 skip=$(($(stat -f "%z" 10mb.file) / 2 / 8192)) count=3 && 
+dd if=10mb.file of=10mb.file.sample4 bs=8192 skip=$(($(stat -f "%z" 10mb.file) / 8192 - 1024)) count=24 && 
+dd if=10mb.file of=10mb.file.sample5 bs=8192 skip=$(($(stat -f "%z" 10mb.file) / 8192 - 10)) count=10 && 
+cat 10mb.file.sample1 10mb.file.sample2 10mb.file.sample3 10mb.file.sample4 10mb.file.sample5 > 10mb.file.sample-concatenated && 
+md5 10mb.file.sample-concatenated &&
+sha256 10mb.file.sample-concatenated 
+
+=======================
+
+
+dd if=10mb.file of=10mb.file.sample1 bs=8192 count=10 && 
+dd if=10mb.file of=10mb.file.sample2 bs=8192 skip=1000 count=24 && 
+dd if=10mb.file of=10mb.file.sample3 bs=8192 skip=$(($(stat -f "%z" 10mb.file) / 2 / 8192)) count=3 && 
+dd if=10mb.file of=10mb.file.sample4 bs=8192 skip=$(($(stat -f "%z" 10mb.file) / 8192 - 1024)) count=24 && 
+dd if=10mb.file of=10mb.file.sample5 bs=8192 skip=$(($(stat -f "%z" 10mb.file) / 8192 - 10)) count=10 && 
+cat 10mb.file.sample1 10mb.file.sample2 10mb.file.sample3 10mb.file.sample4 10mb.file.sample5 > 10mb.file.sample-concatenated && 
+md5 10mb.file.sample-concatenated &&
+sha256 10mb.file.sample-concatenated 
+
+# get file LIN (in HEX) from within the cluster:
+isi get -D ./10mb.file2|egrep LIN|egrep -v needs|sed 's/://g'|awk '{print $3;}'
+
+# get file LIN (in HEX) from nfs client:
+ls -i 10mb.file2| awk '{ printf "%X\n", $1 }'
+
+# generate unique hash for a file
+dd if=10mb.file of=10mb.file.sample1 bs=8192 count=10 && 
+dd if=10mb.file of=10mb.file.sample2 bs=8192 skip=1000 count=24 && 
+dd if=10mb.file of=10mb.file.sample3 bs=8192 skip=$(($(stat -f "%z" 10mb.file) / 2 / 8192)) count=3 && 
+dd if=10mb.file of=10mb.file.sample4 bs=8192 skip=$(($(stat -f "%z" 10mb.file) / 8192 - 1024)) count=24 && 
+dd if=10mb.file of=10mb.file.sample5 bs=8192 skip=$(($(stat -f "%z" 10mb.file) / 8192 - 10)) count=10 && 
+ls -i 10mb.file2| awk '{ printf "%X\n", $1 }' > 10mb.file.lin &&
+cat 10mb.file.sample1 10mb.file.sample2 10mb.file.sample3 10mb.file.sample4 10mb.file.sample5 10mb.file.lin > 10mb.file.fingerprint && 
+md5 10mb.file.fingerprint &&
+sha256 10mb.file.fingerprint 
+
+=======================
+
+echo Generating a sample file &&
+dd if=/dev/urandom of=10mb.file bs=1M count=10 &&
+
+[ $(stat --format="%s" 10mb.file) -gt $((71 * 8192)) ] && echo "File is larger than 71 x 8192" || echo "File is not smaller than 71 x 8192"
+
+echo Capturing the first 10 x 8k blocks of the file &&
+dd if=10mb.file of=10mb.file.sample1 bs=8192 count=10 && 
+
+echo Capturing 24 x 8k blocks with an offset of a 1000  from the begining of a file &&
+dd if=10mb.file of=10mb.file.sample2 bs=8192 skip=1000 count=24 && 
+
+echo Capturing 3 x 8k blocks from the middle of the file &&
+dd if=./10mb.file of=10mb.file.sample3 bs=8192 skip=$(($(stat --format="%b" 10mb.file) / 2 / 16)) count=3 &&
+
+echo "Capturing 24 blocks with an offset of 1000 before the end of the file" &&
+dd if=10mb.file of=10mb.file.sample4 bs=8192 skip=$(($(stat --format=%s 10mb.file) / 8192 - 1000)) count=24 && 
+
+echo "Capturing the last 10 x 8k blocks of the file" &&
+dd if=10mb.file of=10mb.file.sample5 bs=8192 skip=$(($(stat --format=%s 10mb.file) / 8192 - 10)) count=10 &&
+
+echo Capture the unique LIN of a file &&
+ls -i 10mb.file| awk '{ printf "%X\n", $1 }' > 10mb.file.lin &&
+
+echo Concatenate the samples into a single file to hash &&
+cat 10mb.file.sample1 10mb.file.sample2 10mb.file.sample3 10mb.file.sample4 10mb.file.sample5 10mb.file.lin > 10mb.file.fingerprint && 
+
+echo Hash checking against the unique concatenated fingerprint &&
+md5sum --tag 10mb.file.fingerprint &&
+sha256sum --tag 10mb.file.fingerprint 
+
+=======================
+
+# generate a sample file
+echo Generating a sample file &&
+dd if=/dev/urandom of=$myfilename bs=1M count=10 &> /dev/null &&
+
+# get file LIN (in HEX) from within the cluster:
+isi get -D ./10mb.file|egrep LIN|egrep -v needs|sed 's/://g'|awk '{print $3;}'
+
+# get file LIN (in HEX) from nfs client:
+ls -i 10mb.file| awk '{ printf "%X\n", $1 }'
+
+# generate unique hash for a file
+read -p "Enter file name: " myfilename &&
+
+[ $(stat --format="%s" $myfilename) -gt $((11 * 8192)) ] && echo "File is larger than 12 x 8192" || echo "File is smaller than 12 x 8192"
+
+echo Capturing the first 2 x 8k blocks of the file &&
+dd if=$myfilename of=$myfilename.sample1 bs=8192 count=2 &> /dev/null && 
+
+echo Capturing 2 x 8k blocks with an offset of a 1000  from the begining of a file &&
+dd if=$myfilename of=$myfilename.sample2 bs=8192 skip=1000 count=2 &> /dev/null && 
+
+echo Capturing 3 x 8k blocks from the middle of the file &&
+dd if=./$myfilename of=$myfilename.sample3 bs=8192 skip=$(($(stat --format="%b" $myfilename) / 2 / 16)) count=3 &> /dev/null &&
+
+echo "Capturing 2 blocks with an offset of 1000 before the end of the file" &&
+dd if=$myfilename of=$myfilename.sample4 bs=8192 skip=$(($(stat --format=%s $myfilename) / 8192 - 1000)) count=2 &> /dev/null && 
+
+echo "Capturing the last 2 x 8k blocks of the file" &&
+dd if=$myfilename of=$myfilename.sample5 bs=8192 skip=$(($(stat --format=%s $myfilename) / 8192 - 10)) count=2 &> /dev/null &&
+
+echo Capture the unique LIN of a file &&
+ls -i $myfilename| awk '{ printf "%X\n", $1 }' > $myfilename.lin &&
+
+echo Concatenating the samples into a single file to hash &&
+cat $myfilename.sample1 $myfilename.sample2 $myfilename.sample3 $myfilename.sample4 $myfilename.sample5 $myfilename.lin > $myfilename.fingerprint && 
+rm -f $myfilename.sample1 $myfilename.sample2 $myfilename.sample3 $myfilename.sample4 $myfilename.sample5 $myfilename.lin 
+
+echo Hash checking against the unique concatenated fingerprint &&
+md5sum --tag $myfilename.fingerprint &&
+sha256sum --tag $myfilename.fingerprint 
+rm -f $myfilename.fingerprint
+
+
+=======================
+
+# generate a sample file
+echo Generating a sample file &&
+dd if=/dev/urandom of=sample.file bs=1M count=10 &> /dev/null &&
+
+# get file LIN (in HEX) from within the cluster:
+isi get -D ./10mb.file|egrep LIN|egrep -v needs|sed 's/://g'|awk '{print $3;}'
+
+# get file LIN (in HEX) from nfs client:
+ls -i 10mb.file| awk '{ printf "%X\n", $1 }'
+
+echo Generate unique hash for a file by picking samples from the file and using its LIN ; \
+read -p "Enter file name: " myfilename ; \
+[ $(stat --format="%s" $myfilename) -gt $((11 * 8192)) ] && echo "File is larger than 12 x 8192" || echo "File is smaller than 12 x 8192" ; \
+#echo Capturing the first 2 x 8k blocks of the file  ; \
+dd if=$myfilename of=$myfilename.sample1 bs=8192 count=2 &> /dev/null  ; \
+#echo Capturing 2 x 8k blocks with an offset of a 1000  from the begining of a file ; \
+dd if=$myfilename of=$myfilename.sample2 bs=8192 skip=1000 count=2 &> /dev/null ; \
+#echo Capturing 3 x 8k blocks from the middle of the file  ; \
+dd if=./$myfilename of=$myfilename.sample3 bs=8192 skip=$(($(stat --format="%b" $myfilename) / 2 / 16)) count=3 &> /dev/null ; \
+#echo "Capturing 2 blocks with an offset of 1000 before the end of the file" ; \
+dd if=$myfilename of=$myfilename.sample4 bs=8192 skip=$(($(stat --format=%s $myfilename) / 8192 - 1000)) count=2 &> /dev/null ; \
+#echo "Capturing the last 2 x 8k blocks of the file" ; \
+dd if=$myfilename of=$myfilename.sample5 bs=8192 skip=$(($(stat --format=%s $myfilename) / 8192 - 10)) count=2 &> /dev/null ; \
+#echo Capture the unique LIN of a file ; \
+ls -i $myfilename| awk '{ printf "%X\n", $1 }' > $myfilename.lin ; \
+echo Concatenating the samples into a single file to hash ; \
+cat $myfilename.sample1 $myfilename.sample2 $myfilename.sample3 $myfilename.sample4 $myfilename.sample5 $myfilename.lin > $myfilename.fingerprint ; \
+rm -f $myfilename.sample1 $myfilename.sample2 $myfilename.sample3 $myfilename.sample4 $myfilename.sample5 $myfilename.lin  ; \
+echo Hash checking against the unique concatenated fingerprint ; \
+md5sum --tag $myfilename.fingerprint ; \
+sha256sum --tag $myfilename.fingerprint  ; \
+
+rm -f $myfilename.fingerprint
