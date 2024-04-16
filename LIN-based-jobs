@@ -1,0 +1,2 @@
+isi_gconfig -t job-config jobs.common.lin_based_jobs
+isi_gconfig -t job-config jobs.common.lin_based_jobs=true
