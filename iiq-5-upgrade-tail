@@ -1,0 +1,2 @@
+iiq upgrade monitoring:
+tail -f /usr/share/storagemonitoring/logs/upgrade/insightiq_patch_upgrade.log | sed -n -e 's/.*\(Upgrade Status: [^ ]*\).*/\1/p' -e 's/.*\(upgrade completion percentage: [0-9]*%\).*/\1/p'
