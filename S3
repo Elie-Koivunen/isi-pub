@@ -1,0 +1,2 @@
+isi s3 buckets modify testbucket1 --add-ace="name=nobody,type=user,perm=write"  --zone=<zone>
+curl --insecure --data 'stuff'  -X PUT https://172.24.91.201:9021/testbucket1/testfile"
