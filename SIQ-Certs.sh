@@ -3,12 +3,13 @@
 # collection of variables for scripting:
 
 # update the following variables!!!
-myrepo=/ifs/data/certs
-mycls1=sslsiq9101
-mycls2=sslsiq9102
+myrepo=/ifs/data/admin/certs
+mycls1=cls911pri
+mycls2=cls911psec
 
 if [ -d "$myrepo" ]; then
-                echo "#### working repository exists: $myrepo ####"
+                echo "#### A previously existing repository exists: $myrepo ####"
+                echo "Please define another path to avoid conflict!"
                 exit 0
         else
                 mkdir -m 700 -p $myrepo
@@ -36,16 +37,36 @@ openssl verify -CAfile rootCA-SIQ-exp-`date -v+10y +%d-%B-%Y`.pem cls-$mycls2-ex
 
 
 echo Setting up primary cluster certs ..
-isi certificate authority import --name=rootCA-SIQ --certificate-path=rootCA-SIQ-exp-`date -v+10y +%d-%B-%Y`.pem
+isi certificate authority import --name=PowerScale-SyncIQ-rootCA --certificate-path=rootCA-SIQ-exp-`date -v+10y +%d-%B-%Y`.pem
+isi sync certificates peer import --certificate-path=cls-$mycls1-exp-`date -v+10y +%d-%B-%Y`.pem  --name=peer-cls-$mycls1-exp-`date -v+10y +%d-%B-%Y`
 isi sync certificates peer import --certificate-path=cls-$mycls2-exp-`date -v+10y +%d-%B-%Y`.pem  --name=peer-cls-$mycls2-exp-`date -v+10y +%d-%B-%Y`
 isi sync certificates server import --certificate-path=cls-$mycls1-exp-`date -v+10y +%d-%B-%Y`.pem --certificate-key-path=cls-$mycls1-exp-`date -v+10y +%d-%B-%Y`.key --name=server-cls-$mycls1-exp-`date -v+10y +%d-%B-%Y`
 isi sync settings modify --cluster-certificate-id=`isi sync certificates server list -v|egrep -i "ID:"|awk '{print $2;}'`
+echo
+echo "The existing synciq policies need to be manually updated with the correct certificates."
+echo "The initiator certificate is imported as a target certificate to facilitate synciq local replication."
+echo
 
+echo "The installed certificate authority is:"
+isi certificate authority view `isi certificate authority list --no-header --no-footer|egrep PowerScale-SyncIQ-rootCA|awk '{print $1;}'`
+echo
+echo "The installed synciq server certificate is:"
+isi sync certificates server view server-cls-$mycls1-exp-`date -v+10y +%d-%B-%Y`
+echo 
+echo "The installed synciq peer certificates are:"
+isi sync certificates peer list --verbose 
 
+echo
 echo Setting up secondary cluster certs ..
 echo copy the generated certinstall.sh script + pem files to the second cluster and run on the second cluster
 
-echo "isi certificate authority import --name=rootCA-SIQ --certificate-path=rootCA-SIQ-exp-`date -v+10y +%d-%B-%Y`.pem" >> certinstall.sh
+echo "isi certificate authority import --name=PowerScale-SyncIQ-rootCA --certificate-path=rootCA-SIQ-exp-`date -v+10y +%d-%B-%Y`.pem" >> certinstall.sh
 echo "isi sync certificates peer import --certificate-path=cls-$mycls1-exp-`date -v+10y +%d-%B-%Y`.pem  --name=peer-cls-$mycls1-exp-`date -v+10y +%d-%B-%Y`" >> certinstall.sh
+echo "isi sync certificates peer import --certificate-path=cls-$mycls2-exp-`date -v+10y +%d-%B-%Y`.pem  --name=peer-cls-$mycls2-exp-`date -v+10y +%d-%B-%Y`" >> certinstall.sh
 echo "isi sync certificates server import --certificate-path=cls-$mycls2-exp-`date -v+10y +%d-%B-%Y`.pem --certificate-key-path=cls-$mycls2-exp-`date -v+10y +%d-%B-%Y`.key --name=server-cls-$mycls2-exp-`date -v+10y +%d-%B-%Y`" >> certinstall.sh
 echo "isi sync settings modify --cluster-certificate-id=`isi sync certificates server list -v|egrep -i ID:|awk '{print $2;}'`" >> certinstall.sh
+
+cd ..
+tar -czvf certs.tgz certs/
+
+echo Done!
