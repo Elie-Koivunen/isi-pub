@@ -13,7 +13,6 @@ def is_noise(line: str) -> bool:
     return any(pat in line for pat in NOISE_PATTERNS) or not line.strip()
 
 def parse_block(lines):
-    """Parse exactly 6 lines (1 NAME: + 5 supplemental). Return (record, had_error)."""
     rec = {
         "product": "n/a", "name": "n/a", "devid": "n/a", "lnn": "n/a", "serno": "n/a",
         "chscode": "n/a", "chssern": "n/a", "chsslot": "n/a", "extip": "n/a",
@@ -34,7 +33,6 @@ def parse_block(lines):
             mm = re.search(r"ChsSerN:\s*(\S+)", s)
             if mm:
                 chssern = mm.group(1)
-                # If chassis serial matches main serial, show SINGLE-CHASSIS
                 if chssern == rec["serno"]:
                     rec["chssern"] = "SINGLE-CHASSIS"
                 else:
@@ -79,7 +77,6 @@ def rows_from_text(lines):
     return rows
 
 def parse_nodes_spec(spec: str):
-    """Parse nodes spec like '1-3,5,7-8' into a sorted list of ints."""
     nodes = set()
     for part in spec.split(","):
         part = part.strip()
@@ -95,12 +92,10 @@ def parse_nodes_spec(spec: str):
     return sorted(nodes)
 
 def collect_from_cluster(nodes, timeout):
-    """Run the two commands per node, concatenate stdout lines."""
     all_lines = []
     for i in nodes:
         cmd1 = f"isi_nodes -n {i} NAME:%{{node}} DEVID:%{{devid}} LNN:%{{lnn}} SERNO:%{{serialno}} EXT-IP: %{{address4}}"
         cmd2 = f"isi_for_array -n{i} \"isi_hw_status|egrep 'SerNo|ChsSerN|ChsSlot|Product|ChsCode'\""
-
         for cmd in (cmd1, cmd2):
             try:
                 proc = subprocess.run(cmd, shell=True, executable="/bin/sh",
@@ -112,16 +107,31 @@ def collect_from_cluster(nodes, timeout):
             except Exception as e:
                 print(f"ERROR: failed to run: {cmd}\n{e}", file=sys.stderr)
                 continue
-
             if proc.returncode != 0 and proc.stderr:
                 err = proc.stderr.strip().splitlines()[0]
                 print(f"WARN (node {i}): {err}", file=sys.stderr)
-
             if proc.stdout:
                 all_lines.extend(proc.stdout.splitlines(True))
     return all_lines
 
+def sort_rows(rows, sortby, sorttype):
+    if not sortby:
+        return rows
+    header_lower_map = {col.lower().rstrip(":"): idx for idx, col in enumerate(rows[0])}
+    keyname = sortby.lower().rstrip(":")
+    if keyname not in header_lower_map:
+        valid = ", ".join(header_lower_map.keys())
+        print(f"ERROR: Invalid sortby '{sortby}'. Valid options: {valid}", file=sys.stderr)
+        return rows
+    idx = header_lower_map[keyname]
+    header = rows[0]
+    body = rows[1:]
+    reverse = (sorttype.lower() == "desc")
+    body_sorted = sorted(body, key=lambda r: r[idx], reverse=reverse)
+    return [header] + body_sorted
+
 def main():
+    valid_sort_fields = ", ".join(h.rstrip(":") for h in HEADER)
     ap = argparse.ArgumentParser(
         description="Run Isilon/PowerScale commands, parse 6-line datasets, and output aligned table or CSV."
     )
@@ -137,6 +147,14 @@ def main():
         "--csv", nargs="?", const="-",
         help="Output CSV instead of aligned text. With no value, writes to stdout; provide a filename to write to a file."
     )
+    ap.add_argument(
+        "--sortby",
+        help=f"Column name to sort by (case-insensitive, with or without colon). Valid options: {valid_sort_fields}"
+    )
+    ap.add_argument(
+        "--sorttype", default="asc", choices=["asc", "desc"],
+        help="Sort order: asc (default) or desc"
+    )
     args = ap.parse_args()
 
     nodes = parse_nodes_spec(args.nodes)
@@ -146,6 +164,7 @@ def main():
 
     lines = collect_from_cluster(nodes, args.timeout)
     rows = rows_from_text(lines)
+    rows = sort_rows(rows, args.sortby, args.sorttype)
 
     if args.csv is not None:
         outfh = sys.stdout
