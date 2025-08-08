@@ -32,7 +32,13 @@ def parse_block(lines):
             err = True
         if "ChsSerN:" in s:
             mm = re.search(r"ChsSerN:\s*(\S+)", s)
-            if mm: rec["chssern"] = mm.group(1)
+            if mm:
+                chssern = mm.group(1)
+                # If chassis serial matches main serial, show SINGLE-CHASSIS
+                if chssern == rec["serno"]:
+                    rec["chssern"] = "SINGLE-CHASSIS"
+                else:
+                    rec["chssern"] = chssern
         if "ChsSlot:" in s:
             mm = re.search(r"ChsSlot:\s*(\S+)", s)
             if mm: rec["chsslot"] = mm.group(1)
@@ -92,9 +98,7 @@ def collect_from_cluster(nodes, timeout):
     """Run the two commands per node, concatenate stdout lines."""
     all_lines = []
     for i in nodes:
-        # 1) isi_nodes
         cmd1 = f"isi_nodes -n {i} NAME:%{{node}} DEVID:%{{devid}} LNN:%{{lnn}} SERNO:%{{serialno}} EXT-IP: %{{address4}}"
-        # 2) isi_for_array
         cmd2 = f"isi_for_array -n{i} \"isi_hw_status|egrep 'SerNo|ChsSerN|ChsSlot|Product|ChsCode'\""
 
         for cmd in (cmd1, cmd2):
@@ -110,7 +114,6 @@ def collect_from_cluster(nodes, timeout):
                 continue
 
             if proc.returncode != 0 and proc.stderr:
-                # Don't spam; just warn
                 err = proc.stderr.strip().splitlines()[0]
                 print(f"WARN (node {i}): {err}", file=sys.stderr)
 
@@ -141,7 +144,6 @@ def main():
         print("ERROR: no nodes selected (check --nodes)", file=sys.stderr)
         sys.exit(1)
 
-    # Always run the built-in loop; no stdin / --cmd needed.
     lines = collect_from_cluster(nodes, args.timeout)
     rows = rows_from_text(lines)
 
