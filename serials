@@ -1,3 +1,5 @@
+for i in `isi_nodes  %{lnn}`;do isi_nodes -n $i NAME:%{node} DEVID:%{devid} LNN:%{lnn} SERNO:%{serialno} EXT-IP: %{address4} ;isi_for_array -n$i "isi_hw_status|egrep 'SerNo|ChsSerN|ChsSlot|Product|ChsCode'";done
+
 # cluster serial GUID
 grep -A1 serial /etc/ifs/array.xml | grep guid
 
