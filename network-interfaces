@@ -1,0 +1,10 @@
+mce0/1 = backend 0/1
+ix0/1 = backend 0/1
+ib0/1 = backend infiniband 0/1
+mlxen0/1 = backend 0/1
+ 
+bge0 = frontend mgmt-1
+em0/1 = frontend ext-0/1
+ix2/3 = frontend 0/1
+mce2/3 = frontend 0/1
+mlxen2/3 = frontend 0/1
