@@ -1,0 +1,5 @@
+onefs97-1# isi job settings view
+Parallel Restriper Mode: Off
+onefs97-1# isi job settings modify --parallel-restriper-mode=all
+onefs97-1# isi job settings view
+Parallel Restriper Mode: All
