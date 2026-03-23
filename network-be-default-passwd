@@ -1,0 +1,34 @@
+https://www.dell.com/support/kbdoc/en-us/000376305
+
+DNOS 10.5.6.9 for Powerscale backend introduced a new user, REST_USER
+REST_USER has a default password configured.
+
+The switch operating system (DNOS) monitors if the REST_USER password has been changed.
+If REST_USER has the default password, the switch reports an error in the output of the command:
+show smartfabric validation-errors
+
+
+OneFS uses the output from the switch to generate celog events.
+The OneFS Error is:
+Internal-Err(CLUSTER): REST_USER is using the default password.
+Cause
+Introduction of a new user in DNOS - REST_USER
+
+Resolution
+OneFS versions 9.13, 9.10.1.4 and 9.7.1.10
+
+Execute the command isi_config_be_cred on the cluster, this changes the password on the switch, and saves the password on the cluster.
+
+Username: REST_USER
+
+Password: D@ll1234!
+For all other versions of OneFS the following commands run from the cluster change the REST_USER password.
+
+INT-A:
+
+curl -k -s -X PUT -d '{"NewPassword": "D@ll1234!"}' 'https://REST_USER:admin@[fdfe:9042:c53d::5eff:fe00:101]/redfish/v1/Dnv/ChangePassword'
+
+INT-B:
+
+curl -k -s -X PUT -d '{"NewPassword": "D@ll1234!"}' 'https://REST_USER:admin@[fda7:e6ee:2e09::5eff:fe00:102]/redfish/v1/Dnv/ChangePassword'
+Affected Products
