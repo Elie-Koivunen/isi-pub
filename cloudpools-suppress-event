@@ -1,0 +1,4 @@
+isi event suppress modify 1100000004 --suppress true
+Where 1100000004 is the event id for "CloudPools Bucket not found".
+
+for event id 1100000001 related to "CloudPools Network connection failed" 
