@@ -1,0 +1,26 @@
+.\dns-mod.ps1 --set-host=cls20-ssip.lab.scape_192.168.255.20
+.\dns-mod.ps1 --set-host=cls30-ssip.lab.scape_192.168.255.30
+.\dns-mod.ps1 --set-delegation=fs-nfs.lab.scape_cls20-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=fs-nfs.lab.scape_cls30-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=fs-smb.lab.scape_cls20-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=fs-smb.lab.scape_cls30-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=fs-s3.lab.scape_cls20-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=fs-s3.lab.scape_cls30-ssip.lab.scape
+
+.\dns-mod.ps1 --set-delegation=cls20-api.lab.scape_cls20-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls20-mgmt.lab.scape_cls20-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls20-siq.lab.scape_cls20-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls20-ssync.lab.scape_cls20-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls20-ndmp.lab.scape_cls20-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls20-csnfs.lab.scape_cls20-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls20-cshdfs.lab.scape_cls20-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls20-csrobot.lab.scape_cls20-ssip.lab.scape
+
+.\dns-mod.ps1 --set-delegation=cls30-api.lab.scape_cls30-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls30-mgmt.lab.scape_cls30-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls30-siq.lab.scape_cls30-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls30-ssync.lab.scape_cls30-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls30-ndmp.lab.scape_cls30-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls30-csnfs.lab.scape_cls30-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls30-cshdfs.lab.scape_cls30-ssip.lab.scape
+.\dns-mod.ps1 --set-delegation=cls30-csrobot.lab.scape_cls30-ssip.lab.scape
