@@ -4,14 +4,21 @@
  DESCRIPTION   : Manages Windows DNS host records and zone delegations,
                  including dual/multi delegation support, plus active
                  DNS query/verification tooling.
- VERSION       : 1.0.0
+ VERSION       : 1.1.0
  AUTHOR        : Elie Koivunen
  CONTACT       : Elie.Koivunen@Dell.com
  CREATED       : 2026-10-19
- LAST MODIFIED : 2026-10-19
+ LAST MODIFIED : 2026-11-04
  COMPANY       : DELL
 
  CHANGELOG:
+   1.1.0 - Fixed IP address validation to check octet ranges (0-255)
+          - Added parent zone existence validation before operations
+          - Added dry-run mode for safe testing
+          - Improved error messages with detailed context
+          - Added race condition handling for record creation
+          - Added optional parent-zone parameter for explicit zone specification
+          - Added module version checking
    1.0.0 - Initial release
 
  REQUIREMENTS:
@@ -99,6 +106,16 @@
     --query-delegation, additionally queries each delegated name server
     found. Mutually exclusive with --server.
 
+.PARAMETER parent-zone
+    Optional: explicitly specify the parent zone for all operations.
+    If not specified, the parent zone is auto-detected from the FQDN
+    (everything after the first dot). Use this when auto-detection is
+    incorrect for multi-level FQDNs.
+
+.PARAMETER dry-run
+    Optional: preview changes without actually applying them.
+    Shows what would be created or modified but makes no changes.
+
 .PARAMETER help
     Optional flag ( -h / --help ). Displays this help menu and exits.
 
@@ -134,6 +151,16 @@
     directly for the same child FQDN - giving an end-to-end comparison.
 
 .EXAMPLE
+    .\dns-mod.ps1 --set-host=host.domain.com_192.168.1.1 --parent-zone=domain.com
+
+    Creates a host record with explicit parent zone specification.
+
+.EXAMPLE
+    .\dns-mod.ps1 --set-host=host.domain.com_192.168.1.1 --dry-run
+
+    Shows what would be created without actually creating it.
+
+.EXAMPLE
     .\dns-mod.ps1 --help
 
     Displays this help menu.
@@ -141,7 +168,7 @@
 .NOTES
     Author  : Elie Koivunen
     Contact : Elie.Koivunen@Dell.com
-    Version : 1.0.0
+    Version : 1.1.0
 #>
 
 [CmdletBinding()]
@@ -153,18 +180,18 @@ param(
 #----------------------------------------------------------------------
 # 0. Script metadata (used in help/banner output)
 #----------------------------------------------------------------------
-$ScriptVersion  = '1.0.0'
+$ScriptVersion  = '1.1.0'
 $ScriptAuthor   = 'Elie Koivunen'
 $ScriptContact  = 'Elie.Koivunen@Dell.com'
-$ScriptModified = '19-10-2026'
+$ScriptModified = '04-11-2026'
 
 function Show-Banner {
     Write-Host ""
     Write-Host "==================================================================" -ForegroundColor DarkCyan
     Write-Host " Script 	dns-mod.ps1" -ForegroundColor DarkCyan
-    Write-Host " Version 	$ScriptVersion" -ForegroundColor DarkCyan 
+    Write-Host " Version 	$ScriptVersion" -ForegroundColor DarkCyan
     Write-Host " Last Modified: $ScriptModified" -ForegroundColor DarkCyan
-    Write-Host " Author: 	$ScriptAuthor" -ForegroundColor DarkCyan 
+    Write-Host " Author: 	$ScriptAuthor" -ForegroundColor DarkCyan
     Write-Host " Contact: 	$ScriptContact" -ForegroundColor DarkCyan
     Write-Host "==================================================================" -ForegroundColor DarkCyan
 }
@@ -174,7 +201,7 @@ function Show-HelpMenu {
     Write-Host ""
     Write-Host "USAGE:" -ForegroundColor Yellow
     Write-Host "  CREATE:"
-    Write-Host "    .\dns-mod.ps1 [--set-host=<fqdn_ip,...>] [--set-delegation=<childfqdn_nsfqdn,...>] [--server=<dnsserver>]"
+    Write-Host "    .\dns-mod.ps1 [--set-host=<fqdn_ip,...>] [--set-delegation=<childfqdn_nsfqdn,...>] [--server=<dnsserver>] [--parent-zone=<zone>] [--dry-run]"
     Write-Host ""
     Write-Host "  QUERY:"
     Write-Host "    .\dns-mod.ps1 --query-host=<fqdn,...>       (--server=<dnsserver> | --server-all)"
@@ -189,6 +216,8 @@ function Show-HelpMenu {
     Write-Host "  --server=<dnsserver>                   Target a specific DNS server. Mutually exclusive with --server-all."
     Write-Host "  --server-all                            Auto-discover + query the zone's root DNS server. For"
     Write-Host "                                          --query-delegation, ALSO queries each delegated NS/SSIP host."
+    Write-Host "  --parent-zone=<zone>                    Explicitly specify parent zone (optional)."
+    Write-Host "  --dry-run                              Preview changes without applying them."
     Write-Host "  --help / -h                            Show this help menu."
     Write-Host ""
     Write-Host "EXAMPLES:" -ForegroundColor Yellow
@@ -207,6 +236,12 @@ function Show-HelpMenu {
     Write-Host ""
     Write-Host "  # Query delegation against root DNS AND each delegated SSIP host directly" -ForegroundColor DarkGray
     Write-Host "  .\dns-mod.ps1 --query-delegation=fs-smb.lab.scape,fs-nfs.lab.scape --server-all"
+    Write-Host ""
+    Write-Host "  # Create with explicit parent zone" -ForegroundColor DarkGray
+    Write-Host "  .\dns-mod.ps1 --set-host=host.domain.com_192.168.1.1 --parent-zone=domain.com"
+    Write-Host ""
+    Write-Host "  # Dry-run mode (preview only)" -ForegroundColor DarkGray
+    Write-Host "  .\dns-mod.ps1 --set-host=host.domain.com_192.168.1.1 --dry-run"
     Write-Host ""
     Write-Host "NOTE: If you experience argument parsing issues with commas, you may"
     Write-Host "      optionally quote the entire value, e.g.:"
@@ -307,6 +342,8 @@ $QueryDelegationRaw = $ParsedArgs['query-delegation']
 $ServerAll          = $ParsedArgs.ContainsKey('server-all')
 $DnsServerExplicit  = $ParsedArgs.ContainsKey('server')
 $DnsServerName      = if ($DnsServerExplicit) { $ParsedArgs['server'] } else { 'localhost' }
+$ParentZoneExplicit = $ParsedArgs['parent-zone']
+$DryRun             = $ParsedArgs.ContainsKey('dry-run')
 
 #----------------------------------------------------------------------
 # 4. Pre-flight
@@ -323,9 +360,23 @@ function Fail($msg) {
 
 Show-Banner
 
-if (-not (Get-Module -ListAvailable -Name DnsServer)) {
+if ($DryRun) {
+    Write-Host ""
+    Write-Host "*** DRY-RUN MODE: No changes will be made ***" -ForegroundColor Yellow
+}
+
+# Check DnsServer module availability and version
+$dnsModule = Get-Module -ListAvailable -Name DnsServer
+if (-not $dnsModule) {
     Fail "The 'DnsServer' PowerShell module is not available. Install RSAT: DNS Server Tools."
 }
+
+# Optional: Check for minimum version (uncomment if needed)
+# $minVersion = [version]"1.0.0.0"
+# if ($dnsModule.Version -lt $minVersion) {
+#     Fail "DnsServer module version $($dnsModule.Version) is below minimum required version $minVersion."
+# }
+
 Import-Module DnsServer -ErrorAction Stop
 
 if ($ServerAll -and $DnsServerExplicit) {
@@ -362,23 +413,77 @@ else {
 }
 
 #----------------------------------------------------------------------
-# 5. Helper: split an FQDN into (Label, ParentZone)
+# 5. Helper: validate IP address (IPv4 with octet range check)
+#----------------------------------------------------------------------
+function Test-ValidIPv4Address {
+    param([string]$IP)
+
+    if ($IP -notmatch '^\d{1,3}(\.\d{1,3}){3}$') {
+        return $false
+    }
+
+    $octets = $IP -split '\.'
+    foreach ($octet in $octets) {
+        if ([int]$octet -gt 255) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+#----------------------------------------------------------------------
+# 6. Helper: split an FQDN into (Label, ParentZone)
 #----------------------------------------------------------------------
 function Split-Fqdn {
-    param([Parameter(Mandatory)][string]$Fqdn)
+    param(
+        [Parameter(Mandatory)][string]$Fqdn,
+        [string]$ExplicitParentZone
+    )
 
-    $parts = $Fqdn -split '\.', 2
-    if ($parts.Count -ne 2) {
-        Fail "Cannot determine parent zone from FQDN '$Fqdn' (expected label.zone format)."
+    if ($ExplicitParentZone) {
+        if (-not $Fqdn.EndsWith($ExplicitParentZone)) {
+            Fail "FQDN '$Fqdn' does not end with specified parent zone '$ExplicitParentZone'."
+        }
+        $label = $Fqdn.Substring(0, $Fqdn.Length - $ExplicitParentZone.Length - 1)
+        [PSCustomObject]@{
+            Label = $label
+            ParentZone = $ExplicitParentZone
+        }
     }
-    [PSCustomObject]@{
-        Label      = $parts[0]
-        ParentZone = $parts[1]
+    else {
+        $parts = $Fqdn -split '\.', 2
+        if ($parts.Count -ne 2) {
+            Fail "Cannot determine parent zone from FQDN '$Fqdn' (expected label.zone format)."
+        }
+        Write-Warning "Auto-detected parent zone '$($parts[1])' from FQDN '$Fqdn'. Use --parent-zone to specify explicitly if this is incorrect."
+        [PSCustomObject]@{
+            Label = $parts[0]
+            ParentZone = $parts[1]
+        }
     }
 }
 
 #----------------------------------------------------------------------
-# 6. Parse comma-separated FQDN lists (used by --query-host / --query-delegation)
+# 7. Helper: test if a zone exists on the target DNS server
+#----------------------------------------------------------------------
+function Test-ZoneExists {
+    param(
+        [string]$ZoneName,
+        [string]$TargetServer = $DnsServerName
+    )
+
+    try {
+        $zone = Get-DnsServerZone -Name $ZoneName -ComputerName $TargetServer -ErrorAction SilentlyContinue
+        return ($null -ne $zone)
+    }
+    catch {
+        return $false
+    }
+}
+
+#----------------------------------------------------------------------
+# 8. Parse comma-separated FQDN lists (used by --query-host / --query-delegation)
 #----------------------------------------------------------------------
 function Get-FqdnList {
     param([string]$Raw)
@@ -394,7 +499,7 @@ function Get-FqdnList {
 }
 
 #----------------------------------------------------------------------
-# 7. Parse --set-host into a hashtable: FQDN -> IP  (for CREATE mode)
+# 9. Parse --set-host into a hashtable: FQDN -> IP  (for CREATE mode)
 #----------------------------------------------------------------------
 $SetHostMap = @{}
 
@@ -407,15 +512,17 @@ if ($SetHostRaw) {
         }
         $fqdn = $Matches['fqdn']
         $ip   = $Matches['ip']
-        if ($ip -notmatch '^\d{1,3}(\.\d{1,3}){3}$') {
-            Fail "Invalid IP address in --set-host entry: $entry"
+
+        if (-not (Test-ValidIPv4Address -IP $ip)) {
+            Fail "Invalid IP address (octet out of range 0-255) in --set-host entry: $entry"
         }
+
         $SetHostMap[$fqdn] = $ip
     }
 }
 
 #----------------------------------------------------------------------
-# 8. Parse --set-delegation into: ChildFQDN -> @(NameServerFQDN, ...)  (CREATE)
+# 10. Parse --set-delegation into: ChildFQDN -> @(NameServerFQDN, ...)  (CREATE)
 #----------------------------------------------------------------------
 $DelegationMap = @{}
 
@@ -437,8 +544,39 @@ if ($SetDelegationRaw) {
 }
 
 #----------------------------------------------------------------------
-# 9. Helper: resolve an IP for a name server using a fallback chain
-#    (used during CREATE delegation; not used in query mode)
+# 11. Validate parent zones exist before CREATE operations
+#----------------------------------------------------------------------
+if (-not $IsQueryMode) {
+    $zonesToCheck = New-Object System.Collections.Generic.List[string]
+
+    if ($SetHostMap.Count -gt 0) {
+        foreach ($fqdn in $SetHostMap.Keys) {
+            $split = Split-Fqdn -Fqdn $fqdn -ExplicitParentZone $ParentZoneExplicit
+            if ($zonesToCheck -notcontains $split.ParentZone) {
+                $zonesToCheck.Add($split.ParentZone)
+            }
+        }
+    }
+
+    if ($DelegationMap.Count -gt 0) {
+        foreach ($child in $DelegationMap.Keys) {
+            $split = Split-Fqdn -Fqdn $child -ExplicitParentZone $ParentZoneExplicit
+            if ($zonesToCheck -notcontains $split.ParentZone) {
+                $zonesToCheck.Add($split.ParentZone)
+            }
+        }
+    }
+
+    foreach ($zone in $zonesToCheck) {
+        if (-not (Test-ZoneExists -ZoneName $zone)) {
+            Fail "Parent zone '$zone' does not exist on DNS server '$DnsServerName'."
+        }
+    }
+}
+
+#----------------------------------------------------------------------
+# 12. Helper: resolve an IP for a name server using a fallback chain
+#     (used during CREATE delegation; not used in query mode)
 #----------------------------------------------------------------------
 function Resolve-NameServerIP {
     param([string]$NsFqdn)
@@ -448,7 +586,7 @@ function Resolve-NameServerIP {
     }
 
     try {
-        $split = Split-Fqdn -Fqdn $NsFqdn
+        $split = Split-Fqdn -Fqdn $NsFqdn -ExplicitParentZone $ParentZoneExplicit
         $rec = Get-DnsServerResourceRecord -ZoneName $split.ParentZone `
                                             -Name $split.Label `
                                             -RRType A `
@@ -473,7 +611,7 @@ function Resolve-NameServerIP {
 }
 
 #----------------------------------------------------------------------
-# 10. Helper: get existing delegation/NS entries for a child label
+# 13. Helper: get existing delegation/NS entries for a child label
 #     (merges Get-DnsServerZoneDelegation + plain NS records)
 #----------------------------------------------------------------------
 function Get-ExistingDelegationNameServers {
@@ -515,17 +653,29 @@ function Get-ExistingDelegationNameServers {
 }
 
 #----------------------------------------------------------------------
-# 11. QUERY HELPERS
+# 14. QUERY HELPERS
 #----------------------------------------------------------------------
 
 # Resolve the authoritative/root DNS server for a given zone, via normal
 # DNS resolution (NS lookup, then A lookup of the first NS found).
 # Returns a PSCustomObject { Name, IPAddress } or $null on failure.
 function Resolve-ZoneRootServer {
-    param([string]$Zone)
+    param(
+        [string]$Zone,
+        [string]$PreferredServer
+    )
 
     try {
-        $nsAnswers = Resolve-DnsName -Name $Zone -Type NS -ErrorAction Stop |
+        $params = @{
+            Name = $Zone
+            Type = 'NS'
+            ErrorAction = 'Stop'
+        }
+        if ($PreferredServer) {
+            $params['Server'] = $PreferredServer
+        }
+
+        $nsAnswers = Resolve-DnsName @params |
                      Where-Object { $_.Type -eq 'NS' }
 
         if (-not $nsAnswers) { return $null }
@@ -537,7 +687,7 @@ function Resolve-ZoneRootServer {
                    Select-Object -First 1
 
         return [PSCustomObject]@{
-            Name      = $firstNs
+            Name = $firstNs
             IPAddress = if ($aAnswer) { $aAnswer.IPAddress } else { $firstNs }
         }
     }
@@ -598,7 +748,7 @@ function Invoke-NSQuery {
 }
 
 #----------------------------------------------------------------------
-# 12. QUERY MODE: --query-host
+# 15. QUERY MODE: --query-host
 #----------------------------------------------------------------------
 function Invoke-QueryHost {
     param([string[]]$FqdnList)
@@ -608,8 +758,8 @@ function Invoke-QueryHost {
         Write-Host "Query (A): $fqdn" -ForegroundColor Yellow
 
         if ($ServerAll) {
-            $split = Split-Fqdn -Fqdn $fqdn
-            $root  = Resolve-ZoneRootServer -Zone $split.ParentZone
+            $split = Split-Fqdn -Fqdn $fqdn -ExplicitParentZone $ParentZoneExplicit
+            $root  = Resolve-ZoneRootServer -Zone $split.ParentZone -PreferredServer $DnsServerName
 
             if (-not $root) {
                 Write-Host "  ERROR: Could not auto-discover root DNS server for zone '$($split.ParentZone)'." -ForegroundColor Red
@@ -641,7 +791,7 @@ function Invoke-QueryHost {
 }
 
 #----------------------------------------------------------------------
-# 13. QUERY MODE: --query-delegation
+# 16. QUERY MODE: --query-delegation
 #----------------------------------------------------------------------
 function Invoke-QueryDelegation {
     param([string[]]$FqdnList)
@@ -650,10 +800,10 @@ function Invoke-QueryDelegation {
         Write-Host ""
         Write-Host "Query (Delegation/NS): $fqdn" -ForegroundColor Yellow
 
-        $split = Split-Fqdn -Fqdn $fqdn
+        $split = Split-Fqdn -Fqdn $fqdn -ExplicitParentZone $ParentZoneExplicit
 
         if ($ServerAll) {
-            $root = Resolve-ZoneRootServer -Zone $split.ParentZone
+            $root = Resolve-ZoneRootServer -Zone $split.ParentZone -PreferredServer $DnsServerName
 
             if (-not $root) {
                 Write-Host "  ERROR: Could not auto-discover root DNS server for zone '$($split.ParentZone)'." -ForegroundColor Red
@@ -710,12 +860,12 @@ function Invoke-QueryDelegation {
 }
 
 #----------------------------------------------------------------------
-# 14. CREATE MODE FUNCTIONS (host records + delegation)
+# 17. CREATE MODE FUNCTIONS (host records + delegation)
 #----------------------------------------------------------------------
 function Show-HostRecordStatus {
     param([string]$Fqdn)
 
-    $split = Split-Fqdn -Fqdn $Fqdn
+    $split = Split-Fqdn -Fqdn $Fqdn -ExplicitParentZone $ParentZoneExplicit
     Write-Host "Host record: $Fqdn" -ForegroundColor Yellow
 
     try {
@@ -740,7 +890,7 @@ function Show-HostRecordStatus {
 function Show-DelegationStatus {
     param([string]$ChildFqdn)
 
-    $split = Split-Fqdn -Fqdn $ChildFqdn
+    $split = Split-Fqdn -Fqdn $ChildFqdn -ExplicitParentZone $ParentZoneExplicit
     Write-Host "Delegation: $ChildFqdn  (zone: $($split.ParentZone), label: $($split.Label))" -ForegroundColor Yellow
 
     $nsNames = Get-ExistingDelegationNameServers -ParentZone $split.ParentZone -Label $split.Label
@@ -761,7 +911,7 @@ function New-HostRecordIfNeeded {
         [string]$IPAddress
     )
 
-    $split = Split-Fqdn -Fqdn $Fqdn
+    $split = Split-Fqdn -Fqdn $Fqdn -ExplicitParentZone $ParentZoneExplicit
 
     $existing = Get-DnsServerResourceRecord -ZoneName $split.ParentZone `
                                              -Name $split.Label `
@@ -776,6 +926,11 @@ function New-HostRecordIfNeeded {
         return
     }
 
+    if ($DryRun) {
+        Write-Host "[DRY-RUN] Would create host record: $Fqdn -> $IPAddress" -ForegroundColor Cyan
+        return
+    }
+
     try {
         Add-DnsServerResourceRecordA -ZoneName $split.ParentZone `
                                       -Name $split.Label `
@@ -785,7 +940,34 @@ function New-HostRecordIfNeeded {
         Write-Host "Created host record: $Fqdn -> $IPAddress" -ForegroundColor Green
     }
     catch {
-        Write-Host "Failed to create host record '$Fqdn': $_" -ForegroundColor Red
+        # Check if it was created by another process (race condition)
+        $existing = Get-DnsServerResourceRecord -ZoneName $split.ParentZone `
+                                                 -Name $split.Label `
+                                                 -RRType A `
+                                                 -ComputerName $DnsServerName `
+                                                 -ErrorAction SilentlyContinue
+        $already = $existing | Where-Object { $_.RecordData.IPv4Address.ToString() -eq $IPAddress }
+
+        if ($already) {
+            Write-Host "Host record '$Fqdn' -> $IPAddress was created by another process. No action needed." -ForegroundColor Yellow
+        }
+        else {
+            $errorDetails = @{
+                Fqdn = $Fqdn
+                IP = $IPAddress
+                Zone = $split.ParentZone
+                Label = $split.Label
+                Server = $DnsServerName
+                Error = $_.Exception.Message
+            }
+            Write-Host "Failed to create host record:" -ForegroundColor Red
+            Write-Host "  FQDN: $($errorDetails.Fqdn)" -ForegroundColor Red
+            Write-Host "  IP: $($errorDetails.IP)" -ForegroundColor Red
+            Write-Host "  Zone: $($errorDetails.Zone)" -ForegroundColor Red
+            Write-Host "  Label: $($errorDetails.Label)" -ForegroundColor Red
+            Write-Host "  Server: $($errorDetails.Server)" -ForegroundColor Red
+            Write-Host "  Error: $($errorDetails.Error)" -ForegroundColor Red
+        }
     }
 }
 
@@ -795,7 +977,7 @@ function New-DelegationIfNeeded {
         [string[]]$NameServers
     )
 
-    $split = Split-Fqdn -Fqdn $ChildFqdn
+    $split = Split-Fqdn -Fqdn $ChildFqdn -ExplicitParentZone $ParentZoneExplicit
 
     $existingNS = Get-ExistingDelegationNameServers -ParentZone $split.ParentZone -Label $split.Label
 
@@ -813,6 +995,11 @@ function New-DelegationIfNeeded {
         $ip = Resolve-NameServerIP -NsFqdn $ns
 
         if ($ip) {
+            if ($DryRun) {
+                Write-Host "[DRY-RUN] Would add NS '$ns' (glue: $ip) to delegation for '$ChildFqdn'." -ForegroundColor Cyan
+                continue
+            }
+
             try {
                 Add-DnsServerZoneDelegation -Name $split.ParentZone `
                                              -ChildZoneName $split.Label `
@@ -823,10 +1010,31 @@ function New-DelegationIfNeeded {
                 Write-Host "  Added NS '$ns' (glue: $ip) to delegation for '$ChildFqdn'." -ForegroundColor Green
             }
             catch {
-                Write-Host "  Failed to add NS '$ns' (with glue) to delegation '$ChildFqdn': $_" -ForegroundColor Red
+                $errorDetails = @{
+                    ChildFqdn = $ChildFqdn
+                    NameServer = $ns
+                    IP = $ip
+                    Zone = $split.ParentZone
+                    Label = $split.Label
+                    Server = $DnsServerName
+                    Error = $_.Exception.Message
+                }
+                Write-Host "  Failed to add NS '$ns' (with glue) to delegation '$ChildFqdn':" -ForegroundColor Red
+                Write-Host "    Child FQDN: $($errorDetails.ChildFqdn)" -ForegroundColor Red
+                Write-Host "    Name Server: $($errorDetails.NameServer)" -ForegroundColor Red
+                Write-Host "    IP: $($errorDetails.IP)" -ForegroundColor Red
+                Write-Host "    Zone: $($errorDetails.Zone)" -ForegroundColor Red
+                Write-Host "    Label: $($errorDetails.Label)" -ForegroundColor Red
+                Write-Host "    Server: $($errorDetails.Server)" -ForegroundColor Red
+                Write-Host "    Error: $($errorDetails.Error)" -ForegroundColor Red
             }
         }
         else {
+            if ($DryRun) {
+                Write-Host "[DRY-RUN] Would add NS '$ns' (no glue) to delegation for '$ChildFqdn'." -ForegroundColor Cyan
+                continue
+            }
+
             Write-Host "  No IP resolvable for '$ns'. Creating plain NS record (no glue) for '$ChildFqdn'..." -ForegroundColor DarkYellow
             try {
                 Add-DnsServerResourceRecord -ZoneName $split.ParentZone `
@@ -838,14 +1046,28 @@ function New-DelegationIfNeeded {
                 Write-Host "  Added NS '$ns' (no glue) to delegation for '$ChildFqdn'." -ForegroundColor Green
             }
             catch {
-                Write-Host "  Failed to add NS '$ns' (no glue) to delegation '$ChildFqdn': $_" -ForegroundColor Red
+                $errorDetails = @{
+                    ChildFqdn = $ChildFqdn
+                    NameServer = $ns
+                    Zone = $split.ParentZone
+                    Label = $split.Label
+                    Server = $DnsServerName
+                    Error = $_.Exception.Message
+                }
+                Write-Host "  Failed to add NS '$ns' (no glue) to delegation '$ChildFqdn':" -ForegroundColor Red
+                Write-Host "    Child FQDN: $($errorDetails.ChildFqdn)" -ForegroundColor Red
+                Write-Host "    Name Server: $($errorDetails.NameServer)" -ForegroundColor Red
+                Write-Host "    Zone: $($errorDetails.Zone)" -ForegroundColor Red
+                Write-Host "    Label: $($errorDetails.Label)" -ForegroundColor Red
+                Write-Host "    Server: $($errorDetails.Server)" -ForegroundColor Red
+                Write-Host "    Error: $($errorDetails.Error)" -ForegroundColor Red
             }
         }
     }
 }
 
 #----------------------------------------------------------------------
-# 15. MAIN
+# 18. MAIN
 #----------------------------------------------------------------------
 
 if ($IsQueryMode) {
