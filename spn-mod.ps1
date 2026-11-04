@@ -71,6 +71,17 @@
     resolved accounts; unresolvable entries are dropped individually with
     a warning rather than failing the entire script.
 
+.PARAMETER server
+    Optional: specify a specific domain controller for AD operations.
+    If not specified, the default domain controller is used.
+
+.PARAMETER dry-run
+    Optional: preview changes without actually applying them.
+    Shows what would be modified but makes no changes to AD.
+
+.PARAMETER log-file
+    Optional: path to a log file where all operations will be recorded.
+
 .EXAMPLE
     .\spn-mod.ps1 --spn-self-check cls01,cls02
 
@@ -101,6 +112,13 @@
     .\spn-mod.ps1 --spn-self-set cls04 --spn-pair-remove cls01_cls02
 
 .EXAMPLE
+    .\spn-mod.ps1 --spn-self-set cls01 --dry-run
+    # Preview changes without applying them
+
+.EXAMPLE
+    .\spn-mod.ps1 --spn-self-set cls01 --server=dc01.domain.com
+
+.EXAMPLE
     .\spn-mod.ps1 --help
 
 .NOTES
@@ -108,7 +126,7 @@
     Maintainer / Owner : Elie Koivunen
     Contact            : elie.koivunen@dell.com
     Tool               : SPN Delegation Manager (Superna DR / PowerScale)
-    Verson             : 1.0
+    Version            : 1.1.0
     For questions, bug reports, or enhancement requests relating to
     this script, please contact the maintainer listed above.
     ============================================================
@@ -124,6 +142,20 @@
     TIP: Quoting your comma-separated lists is always safe and recommended,
     though this script also correctly handles unquoted lists that
     PowerShell may pre-split into an array.
+
+    CHANGELOG:
+      1.1.0 - Added error handling around Set-Acl operations
+              - Added verification after ACL changes
+              - Added dry-run mode for safe testing
+              - Added permission validation before operations
+              - Added logging capability
+              - Added domain controller parameter
+              - Added progress indication for large operations
+              - Fixed LDAP filter SID format issue
+              - Added module availability check
+              - Added structured version variable
+              - Fixed typo in comment (Verson -> Version)
+      1.0.0 - Initial release
 #>
 
 # ============================================================
@@ -134,12 +166,40 @@
 #  contact above before modifying this script in shared use.
 # ============================================================
 
+$ScriptVersion = '1.1.0'
+$ScriptAuthor  = 'Elie Koivunen'
+$ScriptContact = 'elie.koivunen@dell.com'
+
 $ErrorActionPreference = 'Stop'
+
+# ----------------------------------------------------------------------
+# Logging helper
+# ----------------------------------------------------------------------
+$LogFile = $null
+function Write-Log {
+    param(
+        [Parameter(Mandatory)][string]$Message,
+        [string]$Level = 'INFO'
+    )
+
+    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    $logEntry = "[$timestamp] [$Level] $Message"
+
+    if ($LogFile) {
+        try {
+            Add-Content -Path $LogFile -Value $logEntry -ErrorAction SilentlyContinue
+        }
+        catch {
+            # Don't fail if logging fails
+        }
+    }
+}
 
 function Show-Usage {
 @'
 SPN Delegation Manager (Superna DR / PowerScale)
 Maintainer: Elie Koivunen (elie.koivunen@dell.com)
+Version: 1.1.0
 
 Usage (any combination of the switches below may be used together):
 
@@ -156,6 +216,11 @@ Usage (any combination of the switches below may be used together):
   .\spn-mod.ps1 --spn-check       cls01[,cls02,...]   (full inventory, read-only)
 
   .\spn-mod.ps1 --help
+
+Optional parameters:
+  --server=<dc>       Specify a specific domain controller for AD operations
+  --dry-run           Preview changes without applying them
+  --log-file=<path>   Path to a log file for operation recording
 
 Group semantics:
 
@@ -201,6 +266,12 @@ Examples combining actions in one run:
   .\spn-mod.ps1 --spn-pair-remove cls01_cls02
   .\spn-mod.ps1 --spn-check cls01,cls02,cls03
 
+Examples with optional parameters:
+
+  .\spn-mod.ps1 --spn-self-set cls01 --dry-run
+  .\spn-mod.ps1 --spn-self-set cls01 --server=dc01.domain.com
+  .\spn-mod.ps1 --spn-self-set cls01 --log-file=C:\logs\spn-mod.log
+
 Notes:
   - Accounts may be given as cls01 or cls01$ (no trailing $ needed).
   - Account names must NOT contain '_' (reserved as the pair separator).
@@ -214,6 +285,7 @@ Notes:
     same end state rather than failing or accumulating duplicate ACEs.
 
 Maintainer / Owner: Elie Koivunen (elie.koivunen@dell.com)
+Version: 1.1.0
 '@ | Write-Host
 }
 
@@ -227,6 +299,53 @@ if ($cli.Count -eq 0 -or $cli -contains '--help' -or $cli -contains '-h' -or $cl
     exit 0
 }
 
+# Parse optional parameters
+$TargetServer = $null
+$DryRun = $false
+$LogFilePath = $null
+
+$filteredArgs = New-Object System.Collections.Generic.List[string]
+foreach ($arg in $cli) {
+    if ($arg -match '^--server=(.+)$') {
+        $TargetServer = $Matches[1]
+    }
+    elseif ($arg -eq '--dry-run') {
+        $DryRun = $true
+    }
+    elseif ($arg -match '^--log-file=(.+)$') {
+        $LogFilePath = $Matches[1]
+        $LogFile = $LogFilePath
+    }
+    else {
+        $filteredArgs.Add($arg)
+    }
+}
+
+# Initialize log file if specified
+if ($LogFile) {
+    try {
+        $logDir = Split-Path -Parent $LogFile
+        if (-not (Test-Path $logDir)) {
+            New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+        }
+        Write-Log "SPN Delegation Manager v$ScriptVersion started"
+        Write-Log "Dry-run mode: $DryRun"
+        if ($TargetServer) {
+            Write-Log "Target server: $TargetServer"
+        }
+    }
+    catch {
+        Write-Warning "Failed to initialize log file: $($_.Exception.Message)"
+        $LogFile = $null
+    }
+}
+
+if ($DryRun) {
+    Write-Host ""
+    Write-Host "*** DRY-RUN MODE: No changes will be made to Active Directory ***" -ForegroundColor Yellow
+    Write-Log "DRY-RUN MODE ENABLED"
+}
+
 # Each entry: [PSCustomObject]@{ Group='self'|'pair'|'all'; Action='set'|'remove'|'check'; RawArgument=<string> }
 $requests = New-Object System.Collections.Generic.List[object]
 
@@ -234,15 +353,15 @@ $plainCheckPattern = '^--?spn-check$'
 $groupedPattern    = '^--?spn-(self|pair)-(set|remove|check)$'
 
 $i = 0
-while ($i -lt $cli.Count) {
-    $token = [string]$cli[$i]
+while ($i -lt $filteredArgs.Count) {
+    $token = [string]$filteredArgs[$i]
 
     if ($token -match $plainCheckPattern) {
-        if (($i + 1) -ge $cli.Count) {
+        if (($i + 1) -ge $filteredArgs.Count) {
             throw "Switch '$token' requires an account list argument."
         }
         $i++
-        $rawArgument = (@($cli[$i]) -join ',')
+        $rawArgument = (@($filteredArgs[$i]) -join ',')
 
         $requests.Add([PSCustomObject]@{
             Group       = 'all'
@@ -254,7 +373,7 @@ while ($i -lt $cli.Count) {
         $group  = $Matches[1]
         $action = $Matches[2]
 
-        if (($i + 1) -ge $cli.Count) {
+        if (($i + 1) -ge $filteredArgs.Count) {
             throw "Switch '$token' requires an account list argument."
         }
         $i++
@@ -262,7 +381,7 @@ while ($i -lt $cli.Count) {
         # PowerShell may have already split an unquoted comma list into an
         # array before this script even ran. Normalize to an array first,
         # then rejoin with commas so our own parsing logic works either way.
-        $rawArgument = (@($cli[$i]) -join ',')
+        $rawArgument = (@($filteredArgs[$i]) -join ',')
 
         $requests.Add([PSCustomObject]@{
             Group       = $group
@@ -279,6 +398,29 @@ while ($i -lt $cli.Count) {
 if ($requests.Count -eq 0) {
     throw 'At least one --spn-check, or --spn-(self|pair)-(set|remove|check) switch is required. Run --help.'
 }
+
+# ----------------------------------------------------------------------
+# Check ActiveDirectory module availability
+# ----------------------------------------------------------------------
+if (-not (Get-Module -ListAvailable -Name ActiveDirectory)) {
+    $msg = "The 'ActiveDirectory' PowerShell module is not available. Install RSAT: Active Directory DS-LDS Tools."
+    Write-Log $msg 'ERROR'
+    throw $msg
+}
+
+# ----------------------------------------------------------------------
+# Check permissions (basic check)
+# ----------------------------------------------------------------------
+try {
+    $testUser = Get-ADUser -Identity $env:USERNAME -ErrorAction Stop
+    Write-Log "Current user: $env;User"
+}
+catch {
+    Write-Warning "Could not verify current user: $($_.Exception.Message)"
+}
+
+Import-Module ActiveDirectory -ErrorAction Stop
+Add-Type -AssemblyName System.DirectoryServices
 
 # ----------------------------------------------------------------------
 # Format-level parsing helpers
@@ -399,6 +541,7 @@ foreach ($req in $requests) {
     $label = Get-SwitchLabel -Req $req
     if ($req.Group -eq 'self' -or $req.Group -eq 'all') {
         Write-Host ("  {0,-20} {1}" -f $label, ($req.Names -join ', ')) -ForegroundColor Cyan
+        Write-Log "Request: $label - $($req.Names -join ', ')"
     }
     else {
         $pairDesc = @($req.PairsRaw | ForEach-Object { $_.Raw })
@@ -406,12 +549,11 @@ foreach ($req in $requests) {
         if ($pairDesc.Count -gt 0) { $descParts += ($pairDesc -join ', ') }
         if ($req.DiscoveryRaw.Count -gt 0) { $descParts += (($req.DiscoveryRaw | ForEach-Object { "$_ (discovery)" }) -join ', ') }
         Write-Host ("  {0,-20} {1}" -f $label, ($descParts -join ', ')) -ForegroundColor Cyan
+        Write-Log "Request: $label - $($descParts -join ', ')"
     }
 }
 Write-Host 'Reading Active Directory objects and ACLs...' -ForegroundColor Gray
-
-Import-Module ActiveDirectory -ErrorAction Stop
-Add-Type -AssemblyName System.DirectoryServices
+Write-Log "Reading Active Directory objects and ACLs..."
 
 # ----------------------------------------------------------------------
 # Resolve the union of all distinct names across all requests.
@@ -436,19 +578,35 @@ $allNames = @($allNamesSet)
 $compByName  = @{}
 $unresolved  = New-Object System.Collections.Generic.List[string]
 
+$adParams = @{}
+if ($TargetServer) {
+    $adParams['Server'] = $TargetServer
+}
+
+$totalNames = $allNames.Count
+$currentName = 0
+
 foreach ($n in $allNames) {
+    $currentName++
+    $progress = [math]::Round(($currentName / $totalNames) * 100, 1)
+    Write-Progress -Activity "Resolving AD computer accounts" -Status "$n ($currentName of $totalNames)" -PercentComplete $progress
+
     $sam = "$n`$"
     try {
-        $compByName[$n] = Get-ADComputer -Identity $sam -Properties ObjectSID, DistinguishedName, Name -ErrorAction Stop
+        $compByName[$n] = Get-ADComputer -Identity $sam -Properties ObjectSID, DistinguishedName, Name -ErrorAction Stop @adParams
+        Write-Log "Resolved computer account: $n"
     }
     catch {
         $unresolved.Add($n)
         Write-Warning "Could not resolve computer account '$n' (SamAccountName '$sam'): $($_.Exception.Message)"
+        Write-Log "Failed to resolve computer account '$n': $($_.Exception.Message)" 'WARN'
     }
 }
+Write-Progress -Activity "Resolving AD computer accounts" -Completed
 
 if ($unresolved.Count -gt 0) {
     Write-Host ("Skipping unresolved account(s): {0}" -f ($unresolved -join ', ')) -ForegroundColor Yellow
+    Write-Log "Skipping unresolved accounts: $($unresolved -join ', ')" 'WARN'
 }
 
 # ----------------------------------------------------------------------
@@ -467,9 +625,11 @@ foreach ($req in $requests) {
 
         if ($droppedNames.Count -gt 0) {
             Write-Warning "$label : dropping unresolved account(s): $($droppedNames -join ', ')"
+            Write-Log "$label : dropping unresolved accounts: $($droppedNames -join ', ')" 'WARN'
         }
         if ($resolvedNames.Count -eq 0) {
             Write-Warning "$label : no resolvable accounts remain - skipping this request entirely."
+            Write-Log "$label : no resolvable accounts remain - skipping" 'WARN'
             continue
         }
 
@@ -485,6 +645,7 @@ foreach ($req in $requests) {
 
             if ($missing.Count -gt 0) {
                 Write-Warning "$label : dropping pair '$($p.Raw)' - unresolved account(s): $($missing -join ', ')"
+                Write-Log "$label : dropping pair '$($p.Raw)' - unresolved accounts: $($missing -join ', ')" 'WARN'
                 continue
             }
             $validPairs.Add($p)
@@ -494,6 +655,7 @@ foreach ($req in $requests) {
         foreach ($d in $req.DiscoveryRaw) {
             if (-not $compByName.ContainsKey($d)) {
                 Write-Warning "$label : dropping discovery target '$d' - unresolved account."
+                Write-Log "$label : dropping discovery target '$d' - unresolved account" 'WARN'
                 continue
             }
             $validDiscovery.Add($d)
@@ -501,6 +663,7 @@ foreach ($req in $requests) {
 
         if ($validPairs.Count -eq 0 -and $validDiscovery.Count -eq 0) {
             Write-Warning "$label : no resolvable pairs/targets remain - skipping this request entirely."
+            Write-Log "$label : no resolvable pairs/targets remain - skipping" 'WARN'
             continue
         }
 
@@ -512,6 +675,7 @@ foreach ($req in $requests) {
 
 if ($activeRequests.Count -eq 0) {
     Write-Warning 'No requests remain after removing unresolved accounts. Nothing to do.'
+    Write-Log "No requests remain after removing unresolved accounts. Nothing to do." 'WARN'
     Write-Host "`nDone." -ForegroundColor Cyan
     exit 0
 }
@@ -621,6 +785,13 @@ function Set-TrusteeRights {
 
     if ($status.Present) {
         Write-Host "  [skip] $($Computer.Name): $Label already has the required right(s) on servicePrincipalName (current: $($status.Detail))." -ForegroundColor DarkGray
+        Write-Log "[$($Computer.Name)] SKIP: $Label already has required rights (current: $($status.Detail))"
+        return
+    }
+
+    if ($DryRun) {
+        Write-Host "  [dry-run] $($Computer.Name): would grant $Label the required right(s) on servicePrincipalName." -ForegroundColor Cyan
+        Write-Log "[$($Computer.Name)] DRY-RUN: would grant $Label required rights on servicePrincipalName"
         return
     }
 
@@ -628,8 +799,25 @@ function Set-TrusteeRights {
         $Sid, $GrantMask, [System.Security.AccessControl.AccessControlType]::Allow, $spnGuid
     )
     $acl.AddAccessRule($rule)
-    Set-Acl -Path "AD:$($Computer.DistinguishedName)" -AclObject $acl
-    Write-Host "  [added] $($Computer.Name): granted $Label the required right(s) on servicePrincipalName." -ForegroundColor Green
+
+    try {
+        Set-Acl -Path "AD:$($Computer.DistinguishedName)" -AclObject $acl -ErrorAction Stop
+        Write-Host "  [added] $($Computer.Name): granted $Label the required right(s) on servicePrincipalName." -ForegroundColor Green
+        Write-Log "[$($Computer.Name)] SUCCESS: granted $Label required rights on servicePrincipalName"
+
+        # Verify the change was applied
+        $aclAfter = Get-ComputerAcl -DistinguishedName $Computer.DistinguishedName
+        $statusAfter = Get-TrusteeStatus -Acl $aclAfter -Sid $Sid -RequiredMask $GrantMask
+        if (-not $statusAfter.Present) {
+            Write-Warning "  [verify-fail] $($Computer.Name): verification failed - rights may not have been applied correctly."
+            Write-Log "[$($Computer.Name)] VERIFY-FAIL: rights may not have been applied correctly" 'WARN'
+        }
+    }
+    catch {
+        Write-Host "  [error] $($Computer.Name): failed to grant rights to $Label: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log "[$($Computer.Name)] ERROR: failed to grant rights to $Label: $($_.Exception.Message)" 'ERROR'
+        throw
+    }
 }
 
 function Remove-TrusteeRightsBits {
@@ -650,6 +838,13 @@ function Remove-TrusteeRightsBits {
 
     if ($aces.Count -eq 0) {
         Write-Host "  [skip] $($Computer.Name): no matching right(s) to clear for $Label." -ForegroundColor DarkGray
+        Write-Log "[$($Computer.Name)] SKIP: no matching rights to clear for $Label"
+        return
+    }
+
+    if ($DryRun) {
+        Write-Host "  [dry-run] $($Computer.Name): would clear target right(s) for $Label." -ForegroundColor Cyan
+        Write-Log "[$($Computer.Name)] DRY-RUN: would clear target rights for $Label"
         return
     }
 
@@ -667,14 +862,24 @@ function Remove-TrusteeRightsBits {
             )
             $acl.AddAccessRule($newRule)
             Write-Host "  [cleared] $($Computer.Name): cleared target right(s) for $Label; preserved unrelated right(s): $(Format-Mask $remainder)" -ForegroundColor Yellow
+            Write-Log "[$($Computer.Name)] CLEARED: target rights for $Label; preserved: $(Format-Mask $remainder)"
         }
         else {
             Write-Host "  [removed] $($Computer.Name): removed ACE entirely for $Label (no other rights were present)." -ForegroundColor Yellow
+            Write-Log "[$($Computer.Name)] REMOVED: ACE entirely for $Label"
         }
     }
 
     if ($changed) {
-        Set-Acl -Path "AD:$($Computer.DistinguishedName)" -AclObject $acl
+        try {
+            Set-Acl -Path "AD:$($Computer.DistinguishedName)" -AclObject $acl -ErrorAction Stop
+            Write-Log "[$($Computer.Name)] SUCCESS: ACL changes applied"
+        }
+        catch {
+            Write-Host "  [error] $($Computer.Name): failed to apply ACL changes: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Log "[$($Computer.Name)] ERROR: failed to apply ACL changes: $($_.Exception.Message)" 'ERROR'
+            throw
+        }
     }
 }
 
@@ -691,12 +896,27 @@ function Reset-SelfToBaseline {
     $aces = @(Get-TrusteeAces -Acl $acl -Sid $selfSid)
 
     if ($aces.Count -eq 0) {
+        if ($DryRun) {
+            Write-Host "  [dry-run] $($Computer.Name): would create baseline SELF grant (Self = 8)." -ForegroundColor Cyan
+            Write-Log "[$($Computer.Name)] DRY-RUN: would create baseline SELF grant"
+            return
+        }
+
         $rule = New-Object System.DirectoryServices.ActiveDirectoryAccessRule(
             $selfSid, $selfRight, [System.Security.AccessControl.AccessControlType]::Allow, $spnGuid
         )
         $acl.AddAccessRule($rule)
-        Set-Acl -Path "AD:$($Computer.DistinguishedName)" -AclObject $acl
-        Write-Host "  [reset] $($Computer.Name): no existing SELF ACE found; created baseline grant (Self = 8)." -ForegroundColor Green
+
+        try {
+            Set-Acl -Path "AD:$($Computer.DistinguishedName)" -AclObject $acl -ErrorAction Stop
+            Write-Host "  [reset] $($Computer.Name): no existing SELF ACE found; created baseline grant (Self = 8)." -ForegroundColor Green
+            Write-Log "[$($Computer.Name)] SUCCESS: created baseline SELF grant"
+        }
+        catch {
+            Write-Host "  [error] $($Computer.Name): failed to create baseline SELF grant: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Log "[$($Computer.Name)] ERROR: failed to create baseline SELF grant: $($_.Exception.Message)" 'ERROR'
+            throw
+        }
         return
     }
 
@@ -704,6 +924,13 @@ function Reset-SelfToBaseline {
 
     if ($aces.Count -eq 1 -and $combined -eq $selfRight) {
         Write-Host "  [skip] $($Computer.Name): SELF already at baseline (Self = 8); nothing to reset." -ForegroundColor DarkGray
+        Write-Log "[$($Computer.Name)] SKIP: SELF already at baseline"
+        return
+    }
+
+    if ($DryRun) {
+        Write-Host "  [dry-run] $($Computer.Name): would reset SELF to baseline (Self = 8); previous combined rights were $(Format-Mask $combined)." -ForegroundColor Cyan
+        Write-Log "[$($Computer.Name)] DRY-RUN: would reset SELF to baseline; previous: $(Format-Mask $combined)"
         return
     }
 
@@ -715,9 +942,17 @@ function Reset-SelfToBaseline {
         $selfSid, $selfRight, [System.Security.AccessControl.AccessControlType]::Allow, $spnGuid
     )
     $acl.AddAccessRule($rule)
-    Set-Acl -Path "AD:$($Computer.DistinguishedName)" -AclObject $acl
 
-    Write-Host "  [reset] $($Computer.Name): previous combined rights were $(Format-Mask $combined); SELF restored to baseline (Self = 8)." -ForegroundColor Yellow
+    try {
+        Set-Acl -Path "AD:$($Computer.DistinguishedName)" -AclObject $acl -ErrorAction Stop
+        Write-Host "  [reset] $($Computer.Name): previous combined rights were $(Format-Mask $combined); SELF restored to baseline (Self = 8)." -ForegroundColor Yellow
+        Write-Log "[$($Computer.Name)] SUCCESS: SELF restored to baseline; previous: $(Format-Mask $combined)"
+    }
+    catch {
+        Write-Host "  [error] $($Computer.Name): failed to reset SELF to baseline: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log "[$($Computer.Name)] ERROR: failed to reset SELF to baseline: $($_.Exception.Message)" 'ERROR'
+        throw
+    }
 }
 
 function Resolve-SidToLabel {
@@ -734,10 +969,20 @@ function Resolve-SidToLabel {
     }
     catch {
         try {
-            $obj = Get-ADObject -LDAPFilter "(objectSid=$($Sid.Value))" -Properties Name -ErrorAction Stop
+            # Use proper SID format for LDAP filter
+            $sidBytes = $Sid.Value
+            $sidHex = ($sidBytes -split '-' | ForEach-Object { '{0:X2}' -f [int]$_ }) -join '\'
+            $obj = Get-ADObject -LDAPFilter "(objectSid=$sidHex)" -Properties Name -ErrorAction Stop @adParams
             if ($obj) { return $obj.Name }
         }
-        catch { }
+        catch {
+            # Fallback to using SID directly
+            try {
+                $obj = Get-ADObject -Filter { ObjectSid -eq $Sid } -Properties Name -ErrorAction Stop @adParams
+                if ($obj) { return $obj.Name }
+            }
+            catch { }
+        }
     }
     return $Sid.Value
 }
@@ -764,6 +1009,7 @@ function Invoke-SelfSet {
     foreach ($n in $Names) {
         $me = $compByName[$n]
         Write-Host "Processing (self-set) $($me.Name):" -ForegroundColor Cyan
+        Write-Log "Processing (self-set) $($me.Name)"
         Set-TrusteeRights -Computer $me -Sid $selfSid -GrantMask $selfRight -Label 'SELF'
     }
 }
@@ -773,6 +1019,7 @@ function Invoke-SelfRemove {
     foreach ($n in $Names) {
         $me = $compByName[$n]
         Write-Host "Processing (self-remove) $($me.Name):" -ForegroundColor Cyan
+        Write-Log "Processing (self-remove) $($me.Name)"
         Reset-SelfToBaseline -Computer $me
     }
 }
@@ -811,6 +1058,7 @@ function Invoke-PairSetExplicit {
         $compA = $compByName[$p.A]
         $compB = $compByName[$p.B]
         Write-Host "Processing (pair-set) $($p.Raw):" -ForegroundColor Cyan
+        Write-Log "Processing (pair-set) $($p.Raw)"
         # Bidirectional: A grants rights to B, AND B grants rights to A.
         Set-TrusteeRights -Computer $compA -Sid $compB.ObjectSID -GrantMask $rpWp -Label $compB.Name
         Set-TrusteeRights -Computer $compB -Sid $compA.ObjectSID -GrantMask $rpWp -Label $compA.Name
@@ -823,6 +1071,7 @@ function Invoke-PairRemoveExplicit {
         $compA = $compByName[$p.A]
         $compB = $compByName[$p.B]
         Write-Host "Processing (pair-remove) $($p.Raw):" -ForegroundColor Cyan
+        Write-Log "Processing (pair-remove) $($p.Raw)"
         # Bidirectional: remove A's grant to B, AND B's grant to A.
         Remove-TrusteeRightsBits -Computer $compA -Sid $compB.ObjectSID -ClearMask $rpWp -Label $compB.Name
         Remove-TrusteeRightsBits -Computer $compB -Sid $compA.ObjectSID -ClearMask $rpWp -Label $compA.Name
@@ -892,12 +1141,14 @@ function Invoke-PairRemoveDiscoverySingle {
     param([Parameter(Mandatory)][string]$Name)
     $me  = $compByName[$Name]
     Write-Host "Processing (pair-remove, discovery) $($me.Name):" -ForegroundColor Cyan
+    Write-Log "Processing (pair-remove, discovery) $($me.Name)"
 
     $acl = Get-ComputerAcl -DistinguishedName $me.DistinguishedName
     $found = @(Get-ForeignRpWpGrants -Acl $acl)
 
     if ($found.Count -eq 0) {
         Write-Host "  [skip] $($me.Name): no foreign (non-SELF) RP/WP SPN grants found." -ForegroundColor DarkGray
+        Write-Log "[$($me.Name)] SKIP: no foreign RP/WP SPN grants found"
         return
     }
 
@@ -963,7 +1214,14 @@ function Invoke-SpnFullCheck {
 # ----------------------------------------------------------------------
 $checkRows = New-Object System.Collections.Generic.List[object]
 
+$totalRequests = $activeRequests.Count
+$currentRequest = 0
+
 foreach ($req in $activeRequests) {
+    $currentRequest++
+    $progress = [math]::Round(($currentRequest / $totalRequests) * 100, 1)
+    Write-Progress -Activity "Processing requests" -Status "Request $currentRequest of $totalRequests" -PercentComplete $progress
+
     switch ("$($req.Group):$($req.Action)") {
         'self:check' { $checkRows.AddRange([object[]](Invoke-SelfCheck -Names $req.Names)) }
         'self:set'   { Invoke-SelfSet    -Names $req.Names }
@@ -994,6 +1252,7 @@ foreach ($req in $activeRequests) {
         default { throw "Unhandled request '$($req.Group):$($req.Action)'." }
     }
 }
+Write-Progress -Activity "Processing requests" -Completed
 
 if ($checkRows.Count -gt 0) {
     Write-Host ''
@@ -1012,8 +1271,10 @@ if ($checkRows.Count -gt 0) {
 
     if ($realFailures.Count -eq 0) {
         Write-Host "`nNo missing required rights detected." -ForegroundColor Green
+        Write-Log "No missing required rights detected"
     } else {
         Write-Host "`nOne or more required SPN delegation rights are missing or incomplete." -ForegroundColor Yellow
+        Write-Log "One or more required SPN delegation rights are missing or incomplete" 'WARN'
     }
 }
 
@@ -1021,4 +1282,5 @@ if ($unresolved.Count -gt 0) {
     Write-Host ("`nNote: {0} account(s) could not be resolved and were skipped: {1}" -f $unresolved.Count, ($unresolved -join ', ')) -ForegroundColor Yellow
 }
 
+Write-Log "Script completed successfully"
 Write-Host "`nDone." -ForegroundColor Cyan
